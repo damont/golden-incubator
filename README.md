@@ -2,6 +2,20 @@
 
 **AI-guided software development platform** — Build custom software faster by templating the entire process.
 
+## The Process
+
+[![Process Diagram](https://img.shields.io/badge/📊-View_Process_Diagram-blue)](diagrams/golden-incubator-process.md)
+
+```
+Idea → Discovery → Requirements → Architecture → Build → Deploy → Handoff
+```
+
+See the [full process diagram](diagrams/golden-incubator-process.md) for the complete flowchart.
+
+## For AI Assistants
+
+**[Read AGENTS.md](AGENTS.md)** — Instructions for AI to guide clients through requirements gathering and architecture.
+
 ## Vision
 
 A system where AI agents can take a client from idea → requirements → working MVP, with:
