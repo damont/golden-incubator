@@ -7,12 +7,14 @@
 - [ ] Create architecture diagrams
 - [ ] Define template patterns
 - [ ] Identify reusable components
+- [ ] **Project Viewer** — Visualize progress through the process
 
 ### Deliverables
 - Complete capability specs in `/capabilities/`
 - System architecture diagrams
 - Technology stack decisions (ADRs)
 - Template structure definition
+- **Project Viewer** that renders git artifacts (markdown + mermaid)
 
 ---
 
