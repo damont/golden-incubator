@@ -3,6 +3,8 @@ import { api } from '../../api/client'
 import type { Project } from '../../types'
 import ChatView from '../conversations/ChatView'
 import ArtifactList from '../artifacts/ArtifactList'
+import ProgressSidebar from '../progress/ProgressSidebar'
+import EntityList from '../entities/EntityList'
 
 interface ProjectDetailProps {
   projectId: string
@@ -19,12 +21,13 @@ const PHASE_LABELS: Record<string, string> = {
   complete: 'Complete',
 }
 
-type Tab = 'chat' | 'artifacts'
+type Tab = 'chat' | 'artifacts' | 'entities'
 
 export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailProps) {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('chat')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     api.get<Project>(`/api/projects/${projectId}`)
@@ -38,50 +41,80 @@ export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailPr
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-73px)]">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => onNavigate('/projects')}
-            className="text-sm"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            &larr; Projects
-          </button>
-          <h1 className="text-xl font-bold">{project.name}</h1>
-          <span
-            className="text-xs px-2 py-1 rounded-full"
-            style={{ color: 'var(--accent)', backgroundColor: 'var(--selected-bg)' }}
-          >
-            {PHASE_LABELS[project.current_phase]}
-          </span>
+    <div className="flex h-[calc(100vh-73px)]">
+      {/* Progress Sidebar */}
+      {!sidebarCollapsed && (
+        <ProgressSidebar
+          projectId={projectId}
+          onPhaseClick={(phase) => {
+            // Could navigate to phase-specific view
+            console.log('Phase clicked:', phase)
+          }}
+        />
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 p-4">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-3">
+            {/* Sidebar Toggle */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1 rounded hover:bg-gray-700"
+              style={{ color: 'var(--text-secondary)' }}
+              title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+            >
+              {sidebarCollapsed ? '☰' : '◀'}
+            </button>
+            
+            <button
+              onClick={() => onNavigate('/projects')}
+              className="text-sm"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              &larr; Projects
+            </button>
+            <h1 className="text-xl font-bold">{project.name}</h1>
+            <span
+              className="text-xs px-2 py-1 rounded-full"
+              style={{ color: 'var(--accent)', backgroundColor: 'var(--selected-bg)' }}
+            >
+              {PHASE_LABELS[project.current_phase]}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="flex gap-1 mb-4">
-        {(['chat', 'artifacts'] as Tab[]).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="px-4 py-2 rounded-t text-sm font-medium capitalize"
-            style={{
-              backgroundColor: activeTab === tab ? 'var(--bg-surface)' : 'transparent',
-              color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
-              borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-4">
+          {(['chat', 'entities', 'artifacts'] as Tab[]).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="px-4 py-2 rounded-t text-sm font-medium capitalize"
+              style={{
+                backgroundColor: activeTab === tab ? 'var(--bg-surface)' : 'transparent',
+                color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+                borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+              }}
+            >
+              {tab === 'entities' ? 'Requirements & Items' : tab}
+            </button>
+          ))}
+        </div>
 
-      <div className="flex-1 min-h-0">
-        {activeTab === 'chat' && (
-          <ChatView projectId={projectId} phase={project.current_phase} />
-        )}
-        {activeTab === 'artifacts' && (
-          <ArtifactList projectId={projectId} />
-        )}
+        {/* Tab Content */}
+        <div className="flex-1 min-h-0">
+          {activeTab === 'chat' && (
+            <ChatView projectId={projectId} phase={project.current_phase} />
+          )}
+          {activeTab === 'entities' && (
+            <EntityList projectId={projectId} />
+          )}
+          {activeTab === 'artifacts' && (
+            <ArtifactList projectId={projectId} />
+          )}
+        </div>
       </div>
     </div>
   )
