@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from beanie import PydanticObjectId
 
 from api.schemas.orm.entity import Entity, EntityCounter, EntityType, EntityStatus
-from api.schemas.orm.project import Project, ProjectPhase
+from api.schemas.orm.project import Project
 from api.schemas.orm.note import ActivityLog
 from api.utils.auth import get_current_user
 from api.schemas.orm.user import User
@@ -28,7 +28,6 @@ class EntityCreate(BaseModel):
     entity_type: EntityType
     title: str = Field(..., min_length=1, max_length=200)
     description: str
-    phase: Optional[ProjectPhase] = None  # Defaults to project's current phase
     tags: List[str] = []
     priority: Optional[int] = Field(None, ge=1, le=5)
     parent_id: Optional[str] = None
@@ -49,7 +48,6 @@ class EntityResponse(BaseModel):
     entity_type: str
     reference_id: str
     status: str
-    phase: str
     title: str
     description: str
     tags: List[str]
@@ -65,7 +63,6 @@ class EntityResponse(BaseModel):
 
 class ParseRequest(BaseModel):
     content: str
-    phase: Optional[ProjectPhase] = None
     auto_create: bool = False  # If true, create entities directly
 
 
@@ -95,7 +92,6 @@ def entity_to_response(entity: Entity) -> EntityResponse:
         entity_type=entity.entity_type.value,
         reference_id=entity.reference_id,
         status=entity.status.value,
-        phase=entity.phase.value,
         title=entity.title,
         description=entity.description,
         tags=entity.tags,
@@ -117,7 +113,6 @@ async def list_entities(
     current_user: User = Depends(get_current_user),
     entity_type: Optional[EntityType] = Query(None),
     status: Optional[EntityStatus] = Query(None),
-    phase: Optional[ProjectPhase] = Query(None),
     tag: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -134,8 +129,6 @@ async def list_entities(
         query["entity_type"] = entity_type
     if status:
         query["status"] = status
-    if phase:
-        query["phase"] = phase
     if tag:
         query["tags"] = tag
     
@@ -202,7 +195,6 @@ async def create_entity(
         project_id=project.id,
         entity_type=data.entity_type,
         reference_id=reference_id,
-        phase=data.phase or project.current_phase,
         title=data.title,
         description=data.description,
         tags=data.tags,
@@ -247,19 +239,17 @@ async def parse_content(
     parsed = markdown_parser.parse(data.content)
     
     created_entities = []
-    phase = data.phase or project.current_phase
-    
+
     if data.auto_create and parsed:
         counter = await get_or_create_counter(project.id)
-        
+
         for p in parsed:
             reference_id = counter.next_id(p.entity_type)
-            
+
             entity = Entity(
                 project_id=project.id,
                 entity_type=p.entity_type,
                 reference_id=reference_id,
-                phase=phase,
                 title=p.title,
                 description=p.description,
                 tags=p.tags,
@@ -270,16 +260,16 @@ async def parse_content(
             )
             await entity.insert()
             created_entities.append(entity)
-        
+
         await counter.save()
-        
+
         # Log activity
         await ActivityLog(
             project_id=project.id,
             phase=project.current_phase,
             action="entities_parsed",
             actor=str(current_user.id),
-            details={"count": len(created_entities), "phase": phase.value},
+            details={"count": len(created_entities)},
         ).insert()
     else:
         # Preview mode - create temporary response objects
@@ -288,7 +278,6 @@ async def parse_content(
                 project_id=project.id,
                 entity_type=p.entity_type,
                 reference_id=f"{p.entity_type.value}-NEW",
-                phase=phase,
                 title=p.title,
                 description=p.description,
                 tags=p.tags,

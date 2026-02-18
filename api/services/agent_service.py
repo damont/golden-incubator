@@ -231,12 +231,19 @@ async def handle_tool_call(
                 }
             )
         else:
+            # Auto-assign step_order
+            last = await Artifact.find(
+                {"project_id": project.id, "phase": project.current_phase}
+            ).sort("-step_order").limit(1).to_list()
+            step_order = (last[0].step_order + 1) if last else 1
+
             artifact = Artifact(
                 project_id=project.id,
                 phase=project.current_phase,
                 artifact_type=tool_input["artifact_type"],
                 title=tool_input["title"],
                 content=tool_input["content"],
+                step_order=step_order,
                 created_by="agent",
             )
             await artifact.insert()
@@ -265,7 +272,6 @@ async def handle_tool_call(
         entity = Entity(
             project_id=project.id,
             entity_type=entity_type,
-            phase=project.current_phase,
             reference_id=reference_id,
             title=tool_input["title"],
             description=tool_input["description"],

@@ -25,6 +25,27 @@ router = APIRouter(prefix="/api/projects/{project_id}/progress", tags=["progress
 # DTOs
 # ============================================================================
 
+class StepInfo(BaseModel):
+    """A step (artifact) within a phase."""
+    id: str
+    title: str
+    artifact_type: str
+    version: int
+    step_order: int
+    created_at: str
+
+
+class EntitySummary(BaseModel):
+    """Project-level entity summary."""
+    total_entities: int
+    total_requirements: int
+    confirmed_requirements: int
+    pending_instructions: int
+    open_questions: int
+    by_type: dict[str, int]
+    by_status: dict[str, int]
+
+
 class PhaseInfo(BaseModel):
     """Information about a single phase."""
     phase: str
@@ -33,13 +54,11 @@ class PhaseInfo(BaseModel):
     status: str  # "completed", "current", "upcoming"
     entered_at: Optional[str] = None
     completed_at: Optional[str] = None
-    
-    # Stats for this phase
-    requirements_count: int = 0
-    instructions_count: int = 0
-    instructions_completed: int = 0
+
+    # Steps (artifacts) in this phase
+    steps: List[StepInfo] = []
+    steps_count: int = 0
     notes_count: int = 0
-    artifacts_count: int = 0
 
 
 class ProgressResponse(BaseModel):
@@ -50,14 +69,11 @@ class ProgressResponse(BaseModel):
     current_phase_index: int
     total_phases: int
     percent_complete: int  # 0-100
-    
+
     phases: List[PhaseInfo]
-    
-    # Pending items across all phases
-    pending_instructions: int
-    open_questions: int
-    total_requirements: int
-    confirmed_requirements: int
+
+    # Project-level entity summary
+    entity_summary: EntitySummary
 
 
 class PhaseAdvanceRequest(BaseModel):
@@ -137,108 +153,110 @@ async def get_progress(
 ):
     """
     Get comprehensive progress overview for sidebar display.
-    
+
     Returns phase status, completion stats, and pending items.
     """
     project = await Project.get(PydanticObjectId(project_id))
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     # Build phase history lookup
     phase_history = {h.phase: h for h in project.phase_history}
     current_idx = PHASE_ORDER.index(_effective_phase(project.current_phase))
-    
-    # Get counts for each phase
+
+    # Build phase list with steps (artifacts) per phase
     phases = []
-    total_pending_instructions = 0
-    total_open_questions = 0
-    total_requirements = 0
-    confirmed_requirements = 0
-    
+
     for i, phase in enumerate(PHASE_ORDER):
         # Determine status
         if i < current_idx:
-            status = "completed"
+            phase_status = "completed"
         elif i == current_idx:
-            status = "current"
+            phase_status = "current"
         else:
-            status = "upcoming"
-        
+            phase_status = "upcoming"
+
         # Get history entry
         history = phase_history.get(phase)
-        
-        # Count entities for this phase
-        req_count = await Entity.find({
-            "project_id": project.id,
-            "phase": phase,
-            "entity_type": EntityType.REQUIREMENT,
-        }).count()
-        
-        instr_count = await Entity.find({
-            "project_id": project.id,
-            "phase": phase,
-            "entity_type": EntityType.INSTRUCTION,
-        }).count()
-        
-        instr_completed = await Entity.find({
-            "project_id": project.id,
-            "phase": phase,
-            "entity_type": EntityType.INSTRUCTION,
-            "status": EntityStatus.COMPLETED,
-        }).count()
-        
-        questions = await Entity.find({
-            "project_id": project.id,
-            "phase": phase,
-            "entity_type": EntityType.QUESTION,
-            "status": {"$nin": [EntityStatus.COMPLETED, EntityStatus.REJECTED]},
-        }).count()
-        
+
+        # Get artifacts for this phase, sorted by step_order
+        artifacts = await Artifact.find(
+            {"project_id": project.id, "phase": phase}
+        ).sort("step_order").to_list()
+
+        steps = [
+            StepInfo(
+                id=str(a.id),
+                title=a.title,
+                artifact_type=a.artifact_type.value,
+                version=a.version,
+                step_order=a.step_order,
+                created_at=a.created_at.isoformat(),
+            )
+            for a in artifacts
+        ]
+
         notes = await Note.find({
             "project_id": project.id,
             "phase": phase,
         }).count()
-        
-        artifacts = await Artifact.find({
-            "project_id": project.id,
-            "phase": phase,
-        }).count()
-        
-        # Track confirmed requirements
-        confirmed_in_phase = await Entity.find({
-            "project_id": project.id,
-            "phase": phase,
-            "entity_type": EntityType.REQUIREMENT,
-            "status": EntityStatus.CONFIRMED,
-        }).count()
-        
-        total_requirements += req_count
-        confirmed_requirements += confirmed_in_phase
-        total_pending_instructions += (instr_count - instr_completed)
-        total_open_questions += questions
-        
+
         info = PHASE_INFO[phase]
         phases.append(PhaseInfo(
             phase=phase.value,
             name=info["name"],
             description=info["description"],
-            status=status,
+            status=phase_status,
             entered_at=history.entered_at.isoformat() if history else None,
             completed_at=history.completed_at.isoformat() if history and history.completed_at else None,
-            requirements_count=req_count,
-            instructions_count=instr_count,
-            instructions_completed=instr_completed,
+            steps=steps,
+            steps_count=len(steps),
             notes_count=notes,
-            artifacts_count=artifacts,
         ))
-    
-    # Calculate percent complete (simple: based on phase index)
-    # Could be made more sophisticated based on phase deliverables
+
+    # Compute project-level entity summary
+    all_entities = await Entity.find({"project_id": project.id}).to_list()
+
+    by_type: dict[str, int] = {}
+    by_status: dict[str, int] = {}
+    total_requirements = 0
+    confirmed_requirements = 0
+    pending_instructions = 0
+    open_questions = 0
+
+    for e in all_entities:
+        t = e.entity_type.value
+        s = e.status.value
+        by_type[t] = by_type.get(t, 0) + 1
+        by_status[s] = by_status.get(s, 0) + 1
+
+        if e.entity_type == EntityType.REQUIREMENT:
+            total_requirements += 1
+            if e.status == EntityStatus.CONFIRMED:
+                confirmed_requirements += 1
+        elif e.entity_type == EntityType.INSTRUCTION:
+            if e.status not in (EntityStatus.COMPLETED, EntityStatus.REJECTED):
+                pending_instructions += 1
+        elif e.entity_type == EntityType.QUESTION:
+            if e.status not in (EntityStatus.COMPLETED, EntityStatus.REJECTED):
+                open_questions += 1
+
+    entity_summary = EntitySummary(
+        total_entities=len(all_entities),
+        total_requirements=total_requirements,
+        confirmed_requirements=confirmed_requirements,
+        pending_instructions=pending_instructions,
+        open_questions=open_questions,
+        by_type=by_type,
+        by_status=by_status,
+    )
+
+    # Calculate percent complete
     if project.current_phase == ProjectPhase.COMPLETE:
         percent_complete = 100
     else:
         percent_complete = int((current_idx / (len(PHASE_ORDER) - 1)) * 100)
-    
+
     return ProgressResponse(
         project_id=str(project.id),
         project_name=project.name,
@@ -247,10 +265,7 @@ async def get_progress(
         total_phases=len(PHASE_ORDER),
         percent_complete=percent_complete,
         phases=phases,
-        pending_instructions=total_pending_instructions,
-        open_questions=total_open_questions,
-        total_requirements=total_requirements,
-        confirmed_requirements=confirmed_requirements,
+        entity_summary=entity_summary,
     )
 
 
@@ -262,13 +277,13 @@ async def advance_phase(
 ):
     """
     Advance project to the next phase.
-    
+
     Validates that current phase requirements are met unless force=True.
     """
     project = await Project.get(PydanticObjectId(project_id))
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     effective = _effective_phase(project.current_phase)
     current_idx = PHASE_ORDER.index(effective)
 
@@ -277,43 +292,40 @@ async def advance_phase(
 
     next_phase = PHASE_ORDER[current_idx + 1]
     warnings = []
-    
+
     # Validation checks (skip if force=True)
     if not data.force:
-        # Check for incomplete instructions
-        pending_instructions = await Entity.find({
+        # Check for incomplete instructions (project-wide)
+        pending_instr = await Entity.find({
             "project_id": project.id,
-            "phase": project.current_phase,
             "entity_type": EntityType.INSTRUCTION,
             "status": {"$nin": [EntityStatus.COMPLETED, EntityStatus.REJECTED]},
         }).count()
-        
-        if pending_instructions > 0:
-            warnings.append(f"{pending_instructions} instructions not completed")
-        
-        # Check for open questions
-        open_questions = await Entity.find({
+
+        if pending_instr > 0:
+            warnings.append(f"{pending_instr} instructions not completed")
+
+        # Check for open questions (project-wide)
+        open_q = await Entity.find({
             "project_id": project.id,
-            "phase": project.current_phase,
             "entity_type": EntityType.QUESTION,
             "status": {"$nin": [EntityStatus.COMPLETED, EntityStatus.REJECTED]},
         }).count()
-        
-        if open_questions > 0:
-            warnings.append(f"{open_questions} questions still open")
-        
+
+        if open_q > 0:
+            warnings.append(f"{open_q} questions still open")
+
         # Check for unconfirmed requirements (in intake phase)
         if project.current_phase == ProjectPhase.INTAKE:
             unconfirmed = await Entity.find({
                 "project_id": project.id,
-                "phase": project.current_phase,
                 "entity_type": EntityType.REQUIREMENT,
                 "status": EntityStatus.DRAFT,
             }).count()
 
             if unconfirmed > 0:
                 warnings.append(f"{unconfirmed} requirements not confirmed")
-        
+
         # If warnings and not forcing, block advancement
         if warnings:
             return PhaseAdvanceResponse(
@@ -323,27 +335,27 @@ async def advance_phase(
                 message="Phase has incomplete items. Set force=True to advance anyway.",
                 warnings=warnings,
             )
-    
+
     # Update phase history
     now = datetime.now(timezone.utc)
-    
+
     # Mark current phase as completed
     for entry in project.phase_history:
         if entry.phase == project.current_phase and entry.completed_at is None:
             entry.completed_at = now
             break
-    
+
     # Add new phase entry
     project.phase_history.append(PhaseHistoryEntry(
         phase=next_phase,
         entered_at=now,
     ))
-    
+
     previous_phase = project.current_phase
     project.current_phase = next_phase
     project.updated_at = now
     await project.save()
-    
+
     # Log activity
     await ActivityLog(
         project_id=project.id,
@@ -356,7 +368,7 @@ async def advance_phase(
             "forced": data.force,
         },
     ).insert()
-    
+
     # Create system note
     await Note(
         project_id=project.id,
@@ -367,7 +379,7 @@ async def advance_phase(
         to_phase=next_phase,
         created_by="system",
     ).insert()
-    
+
     return PhaseAdvanceResponse(
         success=True,
         previous_phase=previous_phase.value,

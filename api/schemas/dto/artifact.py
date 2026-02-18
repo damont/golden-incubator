@@ -7,6 +7,7 @@ class ArtifactCreate(BaseModel):
     artifact_type: str
     title: str
     content: str
+    step_order: Optional[int] = None
 
 
 class ArtifactResponse(BaseModel):
@@ -16,6 +17,7 @@ class ArtifactResponse(BaseModel):
     artifact_type: str
     title: str
     content: str
+    step_order: int
     version: int
     created_by: str
     created_at: str

@@ -50,6 +50,8 @@ export default function ProgressSidebar({ projectId, refreshKey, onPhaseClick }:
     return null
   }
 
+  const es = progress.entity_summary
+
   return (
     <div
       className="w-72 shrink-0 flex flex-col border-r overflow-hidden"
@@ -68,7 +70,7 @@ export default function ProgressSidebar({ projectId, refreshKey, onPhaseClick }:
             {progress.percent_complete}%
           </span>
         </div>
-        
+
         {/* Progress Bar */}
         <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-primary)' }}>
           <div
@@ -83,22 +85,21 @@ export default function ProgressSidebar({ projectId, refreshKey, onPhaseClick }:
         {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
           <div className="flex items-center gap-1">
-            <span style={{ color: 'var(--text-secondary)' }}>📋</span>
+            <span style={{ color: 'var(--text-secondary)' }}>REQ</span>
             <span style={{ color: 'var(--text-secondary)' }}>
-              {progress.confirmed_requirements}/{progress.total_requirements} REQ
+              {es.confirmed_requirements}/{es.total_requirements}
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <span style={{ color: 'var(--text-secondary)' }}>⏳</span>
-            <span style={{ color: progress.pending_instructions > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-secondary)' }}>
-              {progress.pending_instructions} pending
+            <span style={{ color: 'var(--text-secondary)' }}>INSTR</span>
+            <span style={{ color: es.pending_instructions > 0 ? 'var(--warning, #f59e0b)' : 'var(--text-secondary)' }}>
+              {es.pending_instructions} pending
             </span>
           </div>
-          {progress.open_questions > 0 && (
+          {es.open_questions > 0 && (
             <div className="flex items-center gap-1 col-span-2">
-              <span>❓</span>
               <span style={{ color: 'var(--warning, #f59e0b)' }}>
-                {progress.open_questions} open questions
+                {es.open_questions} open questions
               </span>
             </div>
           )}
@@ -131,9 +132,9 @@ interface PhaseItemProps {
 
 function PhaseItem({ phase, isExpanded, onToggle }: PhaseItemProps) {
   const statusIcon = {
-    completed: '✓',
-    current: '●',
-    upcoming: '○',
+    completed: '\u2713',
+    current: '\u25CF',
+    upcoming: '\u25CB',
   }[phase.status]
 
   const statusColor = {
@@ -141,8 +142,6 @@ function PhaseItem({ phase, isExpanded, onToggle }: PhaseItemProps) {
     current: 'var(--accent)',
     upcoming: 'var(--text-secondary)',
   }[phase.status]
-
-  const pendingInstructions = phase.instructions_count - phase.instructions_completed
 
   return (
     <div className="px-2">
@@ -171,16 +170,16 @@ function PhaseItem({ phase, isExpanded, onToggle }: PhaseItemProps) {
           {phase.name}
         </span>
 
-        {/* Badge for pending items */}
-        {phase.status !== 'upcoming' && pendingInstructions > 0 && (
+        {/* Badge for step count */}
+        {phase.status !== 'upcoming' && phase.steps_count > 0 && (
           <span
             className="text-xs px-1.5 py-0.5 rounded-full"
             style={{
-              backgroundColor: 'var(--warning, #f59e0b)',
-              color: 'black',
+              backgroundColor: 'var(--accent)',
+              color: 'white',
             }}
           >
-            {pendingInstructions}
+            {phase.steps_count}
           </span>
         )}
 
@@ -192,35 +191,44 @@ function PhaseItem({ phase, isExpanded, onToggle }: PhaseItemProps) {
             transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
           }}
         >
-          ▶
+          {'\u25B6'}
         </span>
       </button>
 
-      {/* Expanded Details */}
+      {/* Expanded Details - show steps (artifacts) */}
       {isExpanded && (
         <div
           className="ml-7 mb-2 pl-2 border-l text-xs space-y-1"
           style={{ borderColor: 'var(--border)' }}
         >
-          <div className="flex justify-between py-1">
-            <span style={{ color: 'var(--text-secondary)' }}>Requirements</span>
-            <span style={{ color: 'var(--text-primary)' }}>{phase.requirements_count}</span>
-          </div>
-          <div className="flex justify-between py-1">
-            <span style={{ color: 'var(--text-secondary)' }}>Instructions</span>
-            <span style={{ color: 'var(--text-primary)' }}>
-              {phase.instructions_completed}/{phase.instructions_count}
-            </span>
-          </div>
-          <div className="flex justify-between py-1">
-            <span style={{ color: 'var(--text-secondary)' }}>Notes</span>
-            <span style={{ color: 'var(--text-primary)' }}>{phase.notes_count}</span>
-          </div>
-          <div className="flex justify-between py-1">
-            <span style={{ color: 'var(--text-secondary)' }}>Artifacts</span>
-            <span style={{ color: 'var(--text-primary)' }}>{phase.artifacts_count}</span>
-          </div>
-          
+          {phase.steps.length > 0 ? (
+            phase.steps.map((step) => (
+              <div key={step.id} className="flex items-center gap-2 py-1">
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: 'var(--accent)' }}
+                />
+                <span className="flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
+                  {step.title}
+                </span>
+                {step.version > 1 && (
+                  <span style={{ color: 'var(--text-secondary)' }}>v{step.version}</span>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="py-1" style={{ color: 'var(--text-secondary)' }}>
+              No artifacts yet
+            </div>
+          )}
+
+          {phase.notes_count > 0 && (
+            <div className="flex justify-between py-1">
+              <span style={{ color: 'var(--text-secondary)' }}>Notes</span>
+              <span style={{ color: 'var(--text-primary)' }}>{phase.notes_count}</span>
+            </div>
+          )}
+
           {phase.entered_at && (
             <div className="pt-1 mt-1 border-t" style={{ borderColor: 'var(--border)' }}>
               <span style={{ color: 'var(--text-secondary)' }}>

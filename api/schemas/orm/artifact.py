@@ -24,6 +24,7 @@ class Artifact(Document):
     artifact_type: ArtifactType
     title: str
     content: str  # markdown
+    step_order: int = 0
     storage_key: Optional[str] = None
     file_name: Optional[str] = None
     file_size: Optional[int] = None

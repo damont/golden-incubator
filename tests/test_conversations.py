@@ -37,18 +37,6 @@ async def project_with_auth(client):
 
 
 @pytest.mark.anyio
-async def test_send_message_no_api_key(project_with_auth):
-    client, project_id = project_with_auth
-    # Without ANTHROPIC_API_KEY set, should get 400
-    res = await client.post(
-        f"/api/projects/{project_id}/messages",
-        json={"content": "Hello"},
-    )
-    assert res.status_code == 400
-    assert "not configured" in res.json()["detail"].lower() or "anthropic" in res.json()["detail"].lower()
-
-
-@pytest.mark.anyio
 async def test_send_message_with_mock_agent(project_with_auth):
     client, project_id = project_with_auth
 

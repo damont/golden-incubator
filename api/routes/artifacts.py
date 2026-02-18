@@ -18,6 +18,14 @@ router = APIRouter()
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+async def _next_step_order(project_id: PydanticObjectId, phase) -> int:
+    """Get the next step_order for a new artifact in a project+phase."""
+    last = await Artifact.find(
+        {"project_id": project_id, "phase": phase}
+    ).sort("-step_order").limit(1).to_list()
+    return (last[0].step_order + 1) if last else 1
+
+
 def artifact_to_response(artifact: Artifact) -> ArtifactResponse:
     return ArtifactResponse(
         id=str(artifact.id),
@@ -26,6 +34,7 @@ def artifact_to_response(artifact: Artifact) -> ArtifactResponse:
         artifact_type=artifact.artifact_type.value,
         title=artifact.title,
         content=artifact.content,
+        step_order=artifact.step_order,
         version=artifact.version,
         created_by=artifact.created_by,
         created_at=artifact.created_at.isoformat(),
@@ -47,7 +56,7 @@ async def list_artifacts(
 
     artifacts = await Artifact.find(
         Artifact.project_id == project.id
-    ).to_list()
+    ).sort("phase", "step_order").to_list()
     return [artifact_to_response(a) for a in artifacts]
 
 
@@ -65,12 +74,14 @@ async def upload_artifact(
     if len(data) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large (10 MB limit)")
 
+    step_order = await _next_step_order(project.id, project.current_phase)
     artifact = Artifact(
         project_id=project.id,
         phase=project.current_phase,
         artifact_type=ArtifactType.UPLOAD,
         title=file.filename or "Uploaded file",
         content="",
+        step_order=step_order,
         file_name=file.filename,
         file_size=len(data),
         content_type=file.content_type or "application/octet-stream",
@@ -131,12 +142,14 @@ async def create_artifact(
     if not project or project.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    step_order = data.step_order if data.step_order is not None else await _next_step_order(project.id, project.current_phase)
     artifact = Artifact(
         project_id=project.id,
         phase=project.current_phase,
         artifact_type=ArtifactType(data.artifact_type),
         title=data.title,
         content=data.content,
+        step_order=step_order,
         created_by=str(user.id),
     )
     await artifact.insert()

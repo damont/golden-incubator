@@ -12,8 +12,6 @@ from typing import Optional, List
 from beanie import Document, Indexed, PydanticObjectId
 from pydantic import BaseModel, Field
 
-from api.schemas.orm.project import ProjectPhase
-
 
 class EntityType(str, Enum):
     """Types of semantic entities we extract from markdown."""
@@ -53,7 +51,6 @@ class Entity(Document):
     
     entity_type: EntityType
     status: EntityStatus = EntityStatus.DRAFT
-    phase: ProjectPhase  # Which phase this entity belongs to
     
     # The entity content
     reference_id: str  # e.g., "REQ-001", "INSTR-003"

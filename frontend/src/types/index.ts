@@ -55,6 +55,7 @@ export interface Artifact {
   artifact_type: ArtifactType
   title: string
   content: string
+  step_order: number
   version: number
   created_by: string
   created_at: string
@@ -77,6 +78,25 @@ export type ArtifactType =
 // Progress & Entities
 // ============================================================================
 
+export interface StepInfo {
+  id: string
+  title: string
+  artifact_type: string
+  version: number
+  step_order: number
+  created_at: string
+}
+
+export interface EntitySummary {
+  total_entities: number
+  total_requirements: number
+  confirmed_requirements: number
+  pending_instructions: number
+  open_questions: number
+  by_type: Record<string, number>
+  by_status: Record<string, number>
+}
+
 export interface PhaseInfo {
   phase: ProjectPhase
   name: string
@@ -84,11 +104,9 @@ export interface PhaseInfo {
   status: 'completed' | 'current' | 'upcoming'
   entered_at: string | null
   completed_at: string | null
-  requirements_count: number
-  instructions_count: number
-  instructions_completed: number
+  steps: StepInfo[]
+  steps_count: number
   notes_count: number
-  artifacts_count: number
 }
 
 export interface ProgressResponse {
@@ -99,10 +117,7 @@ export interface ProgressResponse {
   total_phases: number
   percent_complete: number
   phases: PhaseInfo[]
-  pending_instructions: number
-  open_questions: number
-  total_requirements: number
-  confirmed_requirements: number
+  entity_summary: EntitySummary
 }
 
 export type EntityType =
@@ -129,7 +144,6 @@ export interface Entity {
   entity_type: EntityType
   reference_id: string
   status: EntityStatus
-  phase: ProjectPhase
   title: string
   description: string
   tags: string[]
