@@ -59,6 +59,9 @@ export interface Artifact {
   created_by: string
   created_at: string
   updated_at: string
+  file_name?: string
+  file_size?: number
+  content_type?: string
 }
 
 export type ArtifactType =
@@ -68,6 +71,7 @@ export type ArtifactType =
   | 'architecture_doc'
   | 'diagram'
   | 'spec'
+  | 'upload'
 
 // ============================================================================
 // Progress & Entities

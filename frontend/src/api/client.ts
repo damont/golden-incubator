@@ -48,6 +48,53 @@ class ApiClient {
   put<T>(path: string, body: unknown) { return this.request<T>('PUT', path, body) }
   patch<T>(path: string, body: unknown) { return this.request<T>('PATCH', path, body) }
   delete<T>(path: string) { return this.request<T>('DELETE', path) }
+
+  async upload<T>(path: string, file: File): Promise<T> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const headers: Record<string, string> = {}
+    const token = this.getToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+
+    if (res.status === 401) {
+      this.clearToken()
+      throw new Error('Unauthorized')
+    }
+
+    if (!res.ok) {
+      if (res.status === 413) throw new Error('File too large (10 MB limit)')
+      throw new Error(`API error: ${res.status}`)
+    }
+
+    return res.json()
+  }
+
+  async downloadBlob(path: string): Promise<Blob> {
+    const headers: Record<string, string> = {}
+    const token = this.getToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const res = await fetch(`${this.baseUrl}${path}`, { headers })
+
+    if (res.status === 401) {
+      this.clearToken()
+      throw new Error('Unauthorized')
+    }
+
+    if (!res.ok) throw new Error(`API error: ${res.status}`)
+    return res.blob()
+  }
 }
 
 export const api = new ApiClient()

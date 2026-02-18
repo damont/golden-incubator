@@ -1,23 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../../api/client'
-import type { Conversation, Message, ProjectPhase } from '../../types'
+import type { Artifact, Conversation, Message, ProjectPhase } from '../../types'
 import MessageBubble from './MessageBubble'
 
 interface ChatViewProps {
   projectId: string
   phase: ProjectPhase
+  onMessageSent?: () => void
 }
 
-export default function ChatView({ projectId }: ChatViewProps) {
+export default function ChatView({ projectId, onMessageSent }: ChatViewProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [loadingConv, setLoadingConv] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    api.get<Conversation>(`/api/projects/${projectId}/conversations/current`)
-      .then(conv => setMessages(conv.messages))
+    api.get<Conversation[]>(`/api/projects/${projectId}/conversations`)
+      .then(conversations => {
+        // Merge messages from all conversations, sorted chronologically
+        const allMessages = conversations
+          .flatMap(conv => conv.messages)
+          .sort((a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''))
+        setMessages(allMessages)
+      })
       .catch(() => {})
       .finally(() => setLoadingConv(false))
   }, [projectId])
@@ -48,6 +57,7 @@ export default function ChatView({ projectId }: ChatViewProps) {
         ...prev,
         { role: 'assistant', content: response.content, timestamp: new Date().toISOString() },
       ])
+      onMessageSent?.()
     } catch {
       setMessages(prev => [
         ...prev,
@@ -55,6 +65,40 @@ export default function ChatView({ projectId }: ChatViewProps) {
       ])
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    try {
+      const artifact = await api.upload<Artifact>(
+        `/api/projects/${projectId}/artifacts/upload`,
+        file
+      )
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'user',
+          content: `Uploaded file: ${artifact.file_name || file.name}`,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed'
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Upload failed: ${message}`,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -86,6 +130,11 @@ export default function ChatView({ projectId }: ChatViewProps) {
             <span className="animate-pulse">Thinking...</span>
           </div>
         )}
+        {uploading && (
+          <div className="flex items-center gap-2 px-4 py-3" style={{ color: 'var(--text-secondary)' }}>
+            <span className="animate-pulse">Uploading...</span>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -93,6 +142,26 @@ export default function ChatView({ projectId }: ChatViewProps) {
         className="border-t p-3 flex gap-2"
         style={{ borderColor: 'var(--border-color)' }}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleUpload}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || sending}
+          className="px-3 py-2 rounded border font-medium"
+          style={{
+            borderColor: 'var(--border-color)',
+            color: uploading || sending ? 'var(--text-muted)' : 'var(--text-primary)',
+          }}
+          title="Upload file"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -106,7 +175,7 @@ export default function ChatView({ projectId }: ChatViewProps) {
         <button
           onClick={handleSend}
           disabled={sending || !input.trim()}
-          className="px-4 py-2 rounded font-medium text-white min-h-[44px] sm:min-h-0"
+          className="px-4 py-2 rounded font-medium text-white"
           style={{
             backgroundColor: sending || !input.trim() ? 'var(--text-muted)' : 'var(--accent)',
           }}

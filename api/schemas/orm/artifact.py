@@ -15,6 +15,7 @@ class ArtifactType(str, Enum):
     ARCHITECTURE_DOC = "architecture_doc"
     DIAGRAM = "diagram"
     SPEC = "spec"
+    UPLOAD = "upload"
 
 
 class Artifact(Document):
@@ -23,6 +24,10 @@ class Artifact(Document):
     artifact_type: ArtifactType
     title: str
     content: str  # markdown
+    storage_key: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    content_type: Optional[str] = None
     version: int = 1
     created_by: str  # user_id or "agent"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

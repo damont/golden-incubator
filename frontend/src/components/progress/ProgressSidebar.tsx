@@ -4,24 +4,18 @@ import type { ProgressResponse, PhaseInfo } from '../../types'
 
 interface ProgressSidebarProps {
   projectId: string
+  refreshKey?: number
   onPhaseClick?: (phase: string) => void
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  REQ: 'Requirements',
-  INSTR: 'Instructions',
-  Q: 'Questions',
-  NOTE: 'Notes',
-}
-
-export default function ProgressSidebar({ projectId, onPhaseClick }: ProgressSidebarProps) {
+export default function ProgressSidebar({ projectId, refreshKey, onPhaseClick }: ProgressSidebarProps) {
   const [progress, setProgress] = useState<ProgressResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     loadProgress()
-  }, [projectId])
+  }, [projectId, refreshKey])
 
   const loadProgress = async () => {
     try {
@@ -38,7 +32,7 @@ export default function ProgressSidebar({ projectId, onPhaseClick }: ProgressSid
 
   if (loading) {
     return (
-      <div className="w-64 p-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
+      <div className="w-72 p-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
         <div className="animate-pulse space-y-3">
           <div className="h-4 bg-gray-700 rounded w-3/4"></div>
           <div className="h-2 bg-gray-700 rounded w-full"></div>
@@ -58,7 +52,7 @@ export default function ProgressSidebar({ projectId, onPhaseClick }: ProgressSid
 
   return (
     <div
-      className="w-64 flex flex-col border-r overflow-hidden"
+      className="w-72 shrink-0 flex flex-col border-r overflow-hidden"
       style={{
         backgroundColor: 'var(--bg-surface)',
         borderColor: 'var(--border)',
@@ -113,14 +107,15 @@ export default function ProgressSidebar({ projectId, onPhaseClick }: ProgressSid
 
       {/* Phase List */}
       <div className="flex-1 overflow-y-auto py-2">
-        {progress.phases.map((phase, index) => (
+        {progress.phases.map((phase) => (
           <PhaseItem
             key={phase.phase}
             phase={phase}
-            index={index}
             isExpanded={expanded === phase.phase}
-            onToggle={() => setExpanded(expanded === phase.phase ? null : phase.phase)}
-            onClick={() => onPhaseClick?.(phase.phase)}
+            onToggle={() => {
+              setExpanded(expanded === phase.phase ? null : phase.phase)
+              onPhaseClick?.(phase.phase)
+            }}
           />
         ))}
       </div>
@@ -130,13 +125,11 @@ export default function ProgressSidebar({ projectId, onPhaseClick }: ProgressSid
 
 interface PhaseItemProps {
   phase: PhaseInfo
-  index: number
   isExpanded: boolean
   onToggle: () => void
-  onClick: () => void
 }
 
-function PhaseItem({ phase, index, isExpanded, onToggle, onClick }: PhaseItemProps) {
+function PhaseItem({ phase, isExpanded, onToggle }: PhaseItemProps) {
   const statusIcon = {
     completed: '✓',
     current: '●',

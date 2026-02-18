@@ -51,7 +51,7 @@ class Entity(Document):
     artifact_id: Optional[PydanticObjectId] = None  # Source artifact, if any
     conversation_id: Optional[PydanticObjectId] = None  # Source conversation, if any
     
-    entity_type: Indexed(EntityType)
+    entity_type: EntityType
     status: EntityStatus = EntityStatus.DRAFT
     phase: ProjectPhase  # Which phase this entity belongs to
     

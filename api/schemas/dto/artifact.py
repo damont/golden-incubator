@@ -20,3 +20,6 @@ class ArtifactResponse(BaseModel):
     created_by: str
     created_at: str
     updated_at: str
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    content_type: Optional[str] = None

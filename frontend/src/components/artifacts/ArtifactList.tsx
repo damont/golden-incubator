@@ -14,6 +14,7 @@ const TYPE_LABELS: Record<string, string> = {
   architecture_doc: 'Architecture Document',
   diagram: 'Diagram',
   spec: 'Specification',
+  upload: 'Uploaded File',
 }
 
 export default function ArtifactList({ projectId }: ArtifactListProps) {

@@ -27,47 +27,44 @@ export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailPr
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('chat')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
 
-  useEffect(() => {
+  const loadProject = () => {
     api.get<Project>(`/api/projects/${projectId}`)
       .then(setProject)
       .catch(() => onNavigate('/projects'))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadProject()
   }, [projectId, onNavigate])
+
+  const handleMessageSent = () => {
+    setSidebarRefreshKey(k => k + 1)
+    loadProject()
+  }
 
   if (loading || !project) {
     return <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
   }
 
   return (
-    <div className="flex h-[calc(100vh-73px)]">
+    <div className="flex flex-1 min-h-0 h-full overflow-hidden">
       {/* Progress Sidebar */}
-      {!sidebarCollapsed && (
-        <ProgressSidebar
-          projectId={projectId}
-          onPhaseClick={(phase) => {
-            // Could navigate to phase-specific view
-            console.log('Phase clicked:', phase)
-          }}
-        />
-      )}
+      <ProgressSidebar
+        projectId={projectId}
+        refreshKey={sidebarRefreshKey}
+        onPhaseClick={(phase) => {
+          console.log('Phase clicked:', phase)
+        }}
+      />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 p-4">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 p-6 overflow-hidden">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <div className="flex items-center justify-between gap-2 mb-4">
           <div className="flex items-center gap-3">
-            {/* Sidebar Toggle */}
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-1 rounded hover:bg-gray-700"
-              style={{ color: 'var(--text-secondary)' }}
-              title={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
-            >
-              {sidebarCollapsed ? '☰' : '◀'}
-            </button>
-            
             <button
               onClick={() => onNavigate('/projects')}
               className="text-sm"
@@ -104,9 +101,9 @@ export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailPr
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'chat' && (
-            <ChatView projectId={projectId} phase={project.current_phase} />
+            <ChatView projectId={projectId} phase={project.current_phase} onMessageSent={handleMessageSent} />
           )}
           {activeTab === 'entities' && (
             <EntityList projectId={projectId} />

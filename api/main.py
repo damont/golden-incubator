@@ -41,6 +41,12 @@ async def lifespan(app: FastAPI):
         ],
     )
     logger.info("Connected to MongoDB database: %s", settings.mongodb_db_name)
+
+    # Initialize file storage
+    from api.services.storage import get_storage
+    storage = get_storage()
+    logger.info("Storage backend initialized (upload_dir: %s)", settings.upload_dir)
+
     yield
     client.close()
     logger.info("Disconnected from MongoDB")

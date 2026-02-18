@@ -78,9 +78,19 @@ class PhaseAdvanceResponse(BaseModel):
 # Phase Metadata
 # ============================================================================
 
+# Map legacy phases that were removed from the flow to their replacement
+_LEGACY_PHASE_MAP = {
+    ProjectPhase.REQUIREMENTS: ProjectPhase.INTAKE,
+}
+
+
+def _effective_phase(phase: ProjectPhase) -> ProjectPhase:
+    """Resolve legacy phases to their current equivalent."""
+    return _LEGACY_PHASE_MAP.get(phase, phase)
+
+
 PHASE_ORDER = [
     ProjectPhase.INTAKE,
-    ProjectPhase.REQUIREMENTS,
     ProjectPhase.ARCHITECTURE,
     ProjectPhase.BUILD,
     ProjectPhase.DEPLOY,
@@ -91,11 +101,7 @@ PHASE_ORDER = [
 PHASE_INFO = {
     ProjectPhase.INTAKE: {
         "name": "Intake",
-        "description": "Initial project discovery and problem definition",
-    },
-    ProjectPhase.REQUIREMENTS: {
-        "name": "Requirements",
-        "description": "Detailed requirements gathering and documentation",
+        "description": "Discovery, requirements gathering, and problem definition",
     },
     ProjectPhase.ARCHITECTURE: {
         "name": "Architecture",
@@ -140,7 +146,7 @@ async def get_progress(
     
     # Build phase history lookup
     phase_history = {h.phase: h for h in project.phase_history}
-    current_idx = PHASE_ORDER.index(project.current_phase)
+    current_idx = PHASE_ORDER.index(_effective_phase(project.current_phase))
     
     # Get counts for each phase
     phases = []
@@ -263,11 +269,12 @@ async def advance_phase(
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    current_idx = PHASE_ORDER.index(project.current_phase)
-    
+    effective = _effective_phase(project.current_phase)
+    current_idx = PHASE_ORDER.index(effective)
+
     if current_idx >= len(PHASE_ORDER) - 1:
         raise HTTPException(status_code=400, detail="Project is already complete")
-    
+
     next_phase = PHASE_ORDER[current_idx + 1]
     warnings = []
     
@@ -295,15 +302,15 @@ async def advance_phase(
         if open_questions > 0:
             warnings.append(f"{open_questions} questions still open")
         
-        # Check for unconfirmed requirements (in requirements phase)
-        if project.current_phase == ProjectPhase.REQUIREMENTS:
+        # Check for unconfirmed requirements (in intake phase)
+        if project.current_phase == ProjectPhase.INTAKE:
             unconfirmed = await Entity.find({
                 "project_id": project.id,
                 "phase": project.current_phase,
                 "entity_type": EntityType.REQUIREMENT,
                 "status": EntityStatus.DRAFT,
             }).count()
-            
+
             if unconfirmed > 0:
                 warnings.append(f"{unconfirmed} requirements not confirmed")
         

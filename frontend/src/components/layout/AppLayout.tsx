@@ -8,9 +8,9 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children, onNavigate }: AppLayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col overflow-hidden">
       <Header onNavigate={onNavigate} />
-      <main className="flex-1 p-4 max-w-5xl mx-auto w-full">
+      <main className="flex-1 min-h-0">
         {children}
       </main>
     </div>
