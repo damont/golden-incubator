@@ -46,6 +46,7 @@ async def test_create_artifact(project_with_auth):
     assert data["title"] == "Problem Statement"
     assert data["artifact_type"] == "problem_statement"
     assert data["version"] == 1
+    assert data["step_order"] == 1
     assert data["phase"] == "intake"
 
 

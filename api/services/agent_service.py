@@ -8,6 +8,8 @@ from beanie import PydanticObjectId
 from api.config import get_settings
 from api.schemas.orm.artifact import Artifact, ArtifactType
 from api.schemas.orm.conversation import Conversation, Message
+from api.schemas.orm.entity import Entity, EntityCounter, EntityType
+from api.schemas.orm.note import ActivityLog
 from api.schemas.orm.project import Project, ProjectPhase
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,35 @@ TOOLS = [
         },
     },
     {
+        "name": "save_entity",
+        "description": "Save a structured entity (requirement, decision, constraint, etc.) as it emerges from conversation. Use this incrementally — don't wait until the end. Each call creates one entity visible in the project sidebar.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_type": {
+                    "type": "string",
+                    "enum": [t.value for t in EntityType],
+                    "description": "Type of entity (REQ, DEC, CONST, ASSUME, RISK, Q, NOTE, etc.)",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Short summary of the entity",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Full description of the entity",
+                },
+                "priority": {
+                    "type": "integer",
+                    "description": "Priority 1-5 (1=highest). Optional.",
+                    "minimum": 1,
+                    "maximum": 5,
+                },
+            },
+            "required": ["entity_type", "title", "description"],
+        },
+    },
+    {
         "name": "update_phase",
         "description": "Recommend moving the project to the next phase. Use this when you believe the current phase is complete and it's time to move forward.",
         "input_schema": {
@@ -44,7 +75,10 @@ TOOLS = [
             "properties": {
                 "next_phase": {
                     "type": "string",
-                    "enum": [p.value for p in ProjectPhase],
+                    "enum": [
+                        p.value for p in ProjectPhase
+                        if p != ProjectPhase.REQUIREMENTS
+                    ],
                     "description": "The phase to move to",
                 },
                 "reason": {
@@ -58,46 +92,34 @@ TOOLS = [
 ]
 
 PHASE_INSTRUCTIONS = {
-    ProjectPhase.INTAKE: """You are in the INTAKE (Discovery) phase. Your goal is to understand the client's idea and produce initial artifacts.
+    ProjectPhase.INTAKE: """You are in the INTAKE phase. Your goal is to understand the client's idea, gather requirements, and produce structured artifacts — all in one conversation.
 
 Follow this process:
-1. Let the client describe their idea freely
-2. Ask clarifying questions systematically about:
-   - The Problem: What problem does this solve? Who has it? How are they solving it now? What's painful?
-   - The Users: Who specifically will use this? Technical comfort? Usage frequency? Devices?
-   - The Vision: What does success look like in 6 months? What's the ONE thing it must do? What's out of scope?
-3. Synthesize into a Problem Statement: "[Target users] need a way to [accomplish goal] because [pain point]. Success means [measurable outcome]."
-4. Create initial artifacts using the save_artifact tool:
-   - Problem Statement
-   - User Personas (brief, 2-3 max)
-   - Success Criteria
 
-Ask ONE question at a time. Summarize back what you hear. Probe for specifics when answers are vague.
+**Part 1 — Discovery**
+1. Let the client describe their idea freely.
+2. Ask clarifying questions ONE at a time about:
+   - The Problem: What problem does this solve? Who has it? How do they solve it now?
+   - The Users: Who will use this? Technical comfort? Devices?
+   - The Vision: What does success look like? What's the ONE must-have? What's out of scope?
+3. As requirements, decisions, constraints, and assumptions emerge from the conversation, save each one immediately using the save_entity tool. Do NOT wait until the end — capture them incrementally as they come up.
 
-When you have enough information to write a problem statement and initial artifacts, do so using the save_artifact tool, then recommend moving to the requirements phase using update_phase.""",
-
-    ProjectPhase.REQUIREMENTS: """You are in the REQUIREMENTS phase. Your goal is to produce a complete requirements document.
-
-Follow this process:
-1. Feature Brainstorm: List everything the client wants. Don't filter yet.
-2. Prioritization (MoSCoW):
+**Part 2 — Requirements**
+4. After discovery, brainstorm features and prioritize (MoSCoW):
    - Must Have: Launch blockers
    - Should Have: Important but can wait
    - Could Have: Nice to have
    - Won't Have: Explicitly out of scope
-3. Write User Stories for Must Have features: "As a [role], I want to [action] so that [benefit]." Include acceptance criteria.
-4. Compile the Requirements Document using save_artifact with all sections:
+5. Save each requirement as a save_entity(entity_type="REQ", ...) with appropriate priority.
+6. Write user stories for Must Have features and save them as artifacts.
+
+**Part 3 — Wrap-up**
+7. Create summary artifacts using save_artifact:
    - Problem Statement
-   - User Personas
-   - Features (prioritized)
-   - User Stories with Acceptance Criteria
-   - Constraints
-   - Assumptions
-   - Open Questions
+   - Requirements Document (compiled from the entities you already saved)
+8. Get explicit confirmation from the client, then use update_phase to move directly to architecture.
 
-Ask questions to fill gaps. Get explicit confirmation before finalizing.
-
-When the requirements document is complete and the client approves, use update_phase to move to architecture.""",
+IMPORTANT: Use save_entity frequently throughout the conversation — every time a requirement, decision, constraint, or assumption is identified. The client can see these appear in the sidebar in real-time.""",
 
     ProjectPhase.ARCHITECTURE: """You are in the ARCHITECTURE phase. Your goal is to produce technical design documents.
 
@@ -129,8 +151,13 @@ def build_system_prompt(project: Project, artifacts: list[Artifact]) -> str:
 
     parts.append(f"Current Phase: {project.current_phase.value}")
 
+    # Map legacy phases (e.g. requirements) to their replacement
+    effective_phase = project.current_phase
+    if effective_phase == ProjectPhase.REQUIREMENTS:
+        effective_phase = ProjectPhase.INTAKE
+
     phase_instructions = PHASE_INSTRUCTIONS.get(
-        project.current_phase, DEFAULT_INSTRUCTIONS
+        effective_phase, DEFAULT_INSTRUCTIONS
     )
     parts.append(f"\n## Phase Instructions\n{phase_instructions}")
 
@@ -150,6 +177,7 @@ def build_system_prompt(project: Project, artifacts: list[Artifact]) -> str:
         "\n- Be conversational and friendly"
         "\n- Probe for specifics when answers are vague"
         "\n- Flag potential scope creep early"
+        "\n- Use save_entity to capture requirements, decisions, constraints, and assumptions as they emerge — don't wait"
         "\n- Use save_artifact to produce structured documents when ready"
         "\n- Use update_phase when the current phase is complete"
     )
@@ -203,12 +231,19 @@ async def handle_tool_call(
                 }
             )
         else:
+            # Auto-assign step_order
+            last = await Artifact.find(
+                {"project_id": project.id, "phase": project.current_phase}
+            ).sort("-step_order").limit(1).to_list()
+            step_order = (last[0].step_order + 1) if last else 1
+
             artifact = Artifact(
                 project_id=project.id,
                 phase=project.current_phase,
                 artifact_type=tool_input["artifact_type"],
                 title=tool_input["title"],
                 content=tool_input["content"],
+                step_order=step_order,
                 created_by="agent",
             )
             await artifact.insert()
@@ -220,6 +255,59 @@ async def handle_tool_call(
             return json.dumps(
                 {"status": "created", "artifact_id": str(artifact.id), "version": 1}
             )
+
+    elif tool_name == "save_entity":
+        entity_type = EntityType(tool_input["entity_type"])
+
+        # Get or create counter document for this project
+        counter = await EntityCounter.find_one(
+            EntityCounter.project_id == project.id
+        )
+        if not counter:
+            counter = EntityCounter(project_id=project.id)
+
+        reference_id = counter.next_id(entity_type)
+        await counter.save()
+
+        entity = Entity(
+            project_id=project.id,
+            entity_type=entity_type,
+            reference_id=reference_id,
+            title=tool_input["title"],
+            description=tool_input["description"],
+            priority=tool_input.get("priority"),
+            source_text=tool_input["description"],
+            created_by="agent",
+        )
+        await entity.insert()
+
+        await ActivityLog(
+            project_id=project.id,
+            phase=project.current_phase,
+            action="entity_created",
+            actor="agent",
+            target_type="entity",
+            target_id=entity.id,
+            details={
+                "entity_type": entity_type.value,
+                "reference_id": reference_id,
+                "title": tool_input["title"],
+            },
+        ).insert()
+
+        logger.info(
+            "Entity created: %s %s for project %s",
+            reference_id,
+            tool_input["title"],
+            project.id,
+        )
+        return json.dumps(
+            {
+                "status": "created",
+                "entity_id": str(entity.id),
+                "reference_id": reference_id,
+            }
+        )
 
     elif tool_name == "update_phase":
         next_phase = ProjectPhase(tool_input["next_phase"])

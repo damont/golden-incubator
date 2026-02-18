@@ -9,7 +9,7 @@ export default function Header({ onNavigate }: HeaderProps) {
 
   return (
     <header
-      className="flex items-center justify-between px-4 py-3 border-b"
+      className="flex items-center justify-between px-6 py-3 border-b"
       style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-color)' }}
     >
       <a

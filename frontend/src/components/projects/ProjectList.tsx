@@ -42,12 +42,12 @@ export default function ProjectList({ onNavigate }: ProjectListProps) {
   }
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div className="max-w-7xl mx-auto w-full p-6">
+      <div className="flex items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">Projects</h1>
         <button
           onClick={() => onNavigate('/projects/new')}
-          className="w-full sm:w-auto px-4 py-2 rounded font-medium text-white min-h-[44px] sm:min-h-0"
+          className="px-4 py-2 rounded font-medium text-white"
           style={{ backgroundColor: 'var(--accent)' }}
         >
           New Project
@@ -60,7 +60,7 @@ export default function ProjectList({ onNavigate }: ProjectListProps) {
           <p className="text-sm">Create your first project to get started.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
           {projects.map(project => (
             <a
               key={project.id}

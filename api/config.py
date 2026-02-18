@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "golden_incubator"
@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 10080  # 7 days
     pat_encryption_key: str = "change-me"
     anthropic_api_key: Optional[str] = None
+    upload_dir: str = "/app/uploads"
+    storage_backend: str = "local"
 
 
 @lru_cache

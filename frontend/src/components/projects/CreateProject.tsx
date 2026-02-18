@@ -33,7 +33,7 @@ export default function CreateProject({ onNavigate }: CreateProjectProps) {
   }
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">New Project</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
