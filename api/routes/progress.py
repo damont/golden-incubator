@@ -107,6 +107,7 @@ def _effective_phase(phase: ProjectPhase) -> ProjectPhase:
 
 PHASE_ORDER = [
     ProjectPhase.INTAKE,
+    ProjectPhase.REQUIREMENTS,
     ProjectPhase.ARCHITECTURE,
     ProjectPhase.BUILD,
     ProjectPhase.DEPLOY,
@@ -117,7 +118,11 @@ PHASE_ORDER = [
 PHASE_INFO = {
     ProjectPhase.INTAKE: {
         "name": "Intake",
-        "description": "Discovery, requirements gathering, and problem definition",
+        "description": "Discovery and problem definition",
+    },
+    ProjectPhase.REQUIREMENTS: {
+        "name": "Requirements",
+        "description": "Detailed requirements gathering and documentation",
     },
     ProjectPhase.ARCHITECTURE: {
         "name": "Architecture",
