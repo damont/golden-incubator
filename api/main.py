@@ -7,13 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from api.config import get_settings
-from api.routes import artifacts, auth, conversations, projects, entities, notes, progress
+from api.routes import artifacts, auth, conversations, projects, entities, notes, progress, steps, ddd
 from api.schemas.orm.artifact import Artifact
 from api.schemas.orm.conversation import Conversation
 from api.schemas.orm.project import Project
 from api.schemas.orm.user import User
 from api.schemas.orm.entity import Entity, EntityCounter
 from api.schemas.orm.note import Note, ActivityLog
+from api.schemas.orm.step import Step
+from api.schemas.orm.ddd import DomainEntity, Subdomain, DomainEvent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +40,10 @@ async def lifespan(app: FastAPI):
             EntityCounter,
             Note,
             ActivityLog,
+            Step,
+            DomainEntity,
+            Subdomain,
+            DomainEvent,
         ],
     )
     logger.info("Connected to MongoDB database: %s", settings.mongodb_db_name)
@@ -75,10 +81,12 @@ app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(conversations.router, prefix="/api/projects", tags=["conversations"])
 app.include_router(artifacts.router, prefix="/api/projects", tags=["artifacts"])
 
-# New: Entity, Notes, and Progress routes (no prefix - they include /api/projects/{project_id})
+# New: Entity, Notes, Progress, Steps, and DDD routes (no prefix - they include /api/projects/{project_id})
 app.include_router(entities.router)
 app.include_router(notes.router)
 app.include_router(progress.router)
+app.include_router(steps.router)
+app.include_router(ddd.router)
 
 
 @app.get("/api/health")
