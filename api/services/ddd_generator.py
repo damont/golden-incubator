@@ -124,40 +124,42 @@ class DDDGenerator:
         }
     
     async def _collect_intake_content(self, project_id: PydanticObjectId) -> str:
-        """Collect all text content from intake phase."""
+        """Collect all text content from discovery/intake phases."""
         content_parts = []
-        
-        # Get intake steps
+        discovery_phases = [
+            ProjectPhase.DISCOVERY,
+            ProjectPhase.INTAKE,
+            ProjectPhase.REQUIREMENTS,
+        ]
+
+        # Get steps from discovery-related phases
         steps = await Step.find(
-            Step.project_id == project_id,
-            Step.phase == ProjectPhase.INTAKE,
+            {"project_id": project_id, "phase": {"$in": discovery_phases}}
         ).to_list()
-        
+
         for step in steps:
             if step.output_content:
                 content_parts.append(step.output_content)
-        
-        # Get intake artifacts
+
+        # Get artifacts from discovery-related phases
         artifacts = await Artifact.find(
-            Artifact.project_id == project_id,
-            Artifact.phase == ProjectPhase.INTAKE,
+            {"project_id": project_id, "phase": {"$in": discovery_phases}}
         ).to_list()
-        
+
         for artifact in artifacts:
             if artifact.content:
                 content_parts.append(artifact.content)
-        
-        # Get intake conversations
+
+        # Get conversations from discovery-related phases
         conversations = await Conversation.find(
-            Conversation.project_id == project_id,
-            Conversation.phase == ProjectPhase.INTAKE,
+            {"project_id": project_id, "phase": {"$in": discovery_phases}}
         ).to_list()
-        
+
         for conv in conversations:
             for msg in conv.messages:
                 if msg.get('content'):
                     content_parts.append(msg['content'])
-        
+
         return '\n\n'.join(content_parts)
     
     async def _generate_entities(

@@ -28,6 +28,7 @@ class ProjectResponse(BaseModel):
     name: str
     description: Optional[str]
     current_phase: str
+    percent_complete: int
     phase_history: list[PhaseHistoryResponse]
     github_repo_url: Optional[str] = None
     created_at: str

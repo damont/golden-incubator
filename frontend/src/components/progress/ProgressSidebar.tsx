@@ -183,15 +183,16 @@ function PhaseItem({ phase, isExpanded, onToggle }: PhaseItemProps) {
           </span>
         )}
 
-        {/* Expand Arrow */}
+        {/* Expand Chevron */}
         <span
           className="text-xs transition-transform"
           style={{
             color: 'var(--text-secondary)',
             transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            display: 'inline-block',
           }}
         >
-          {'\u25B6'}
+          ›
         </span>
       </button>
 

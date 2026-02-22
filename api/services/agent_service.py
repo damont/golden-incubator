@@ -77,7 +77,11 @@ TOOLS = [
                     "type": "string",
                     "enum": [
                         p.value for p in ProjectPhase
-                        if p != ProjectPhase.REQUIREMENTS
+                        if p not in (
+                            ProjectPhase.INTAKE,
+                            ProjectPhase.REQUIREMENTS,
+                            ProjectPhase.ARCHITECTURE,
+                        )
                     ],
                     "description": "The phase to move to",
                 },
@@ -92,49 +96,60 @@ TOOLS = [
 ]
 
 PHASE_INSTRUCTIONS = {
-    ProjectPhase.INTAKE: """You are in the INTAKE phase. Your goal is to understand the client's idea, gather requirements, and produce structured artifacts — all in one conversation.
+    ProjectPhase.DISCOVERY: """You are in the DISCOVERY phase. Your goal is to understand the client's idea, gather MVP requirements, and produce structured artifacts — all in one conversation.
+
+IMPORTANT: Focus ONLY on the MVP (Minimum Viable Product). Do NOT save future plans, nice-to-haves, or stretch goals as requirements. Only save what is needed to launch.
 
 Follow this process:
 
-**Part 1 — Discovery**
+**Part 1 — Problem Discovery**
 1. Let the client describe their idea freely.
 2. Ask clarifying questions ONE at a time about:
    - The Problem: What problem does this solve? Who has it? How do they solve it now?
    - The Users: Who will use this? Technical comfort? Devices?
    - The Vision: What does success look like? What's the ONE must-have? What's out of scope?
-3. As requirements, decisions, constraints, and assumptions emerge from the conversation, save each one immediately using the save_entity tool. Do NOT wait until the end — capture them incrementally as they come up.
+3. As MVP requirements, decisions, constraints, and assumptions emerge from the conversation, save each one immediately using the save_entity tool. Do NOT wait until the end — capture them incrementally as they come up.
 
-**Part 2 — Requirements**
-4. After discovery, brainstorm features and prioritize (MoSCoW):
-   - Must Have: Launch blockers
-   - Should Have: Important but can wait
-   - Could Have: Nice to have
-   - Won't Have: Explicitly out of scope
-5. Save each requirement as a save_entity(entity_type="REQ", ...) with appropriate priority.
-6. Write user stories for Must Have features and save them as artifacts.
+**Part 2 — MVP Requirements**
+4. After discovery, help the client identify what is essential for launch:
+   - What must exist on day one for this to be useful?
+   - What is the simplest version that solves the core problem?
+5. Save ONLY MVP requirements as save_entity(entity_type="REQ", ...). If the client mentions features that are not essential for launch, acknowledge them but do NOT save them as requirements.
 
-**Part 3 — Wrap-up**
+**Part 3 — Out of Scope**
+6. Collect any ideas the client mentioned that are NOT part of the MVP (nice-to-haves, future features, stretch goals). Save these as a single artifact using save_artifact with artifact_type="spec" and title="Out of Scope — Future Ideas". This keeps them recorded without cluttering the MVP requirements.
+
+**Part 4 — Wrap-up**
 7. Create summary artifacts using save_artifact:
    - Problem Statement
-   - Requirements Document (compiled from the entities you already saved)
-8. Get explicit confirmation from the client, then use update_phase to move directly to architecture.
+   - Requirements Document (compiled from the MVP entities you already saved)
+8. Get explicit confirmation from the client, then use update_phase to move to domain_design.
 
-IMPORTANT: Use save_entity frequently throughout the conversation — every time a requirement, decision, constraint, or assumption is identified. The client can see these appear in the sidebar in real-time.""",
+IMPORTANT: Use save_entity frequently throughout the conversation — every time an MVP requirement, decision, constraint, or assumption is identified. The client can see these appear in the sidebar in real-time. Do NOT save future/non-MVP items as entities.""",
 
-    ProjectPhase.ARCHITECTURE: """You are in the ARCHITECTURE phase. Your goal is to produce technical design documents.
+    ProjectPhase.DOMAIN_DESIGN: """You are in the DOMAIN DESIGN phase. A DDD scaffold (entities, subdomains, events) has been auto-generated from Discovery. Your goal is to review and refine it with the client.
 
-Cover:
-1. Data Model: What entities exist? How do they relate? Create an ERD.
-2. API Design: What operations are needed? RESTful resource structure. Auth requirements.
-3. UI/UX: Key screens/flows. Wireframes (text-based).
-4. Technical Decisions: Framework choices, hosting, integrations.
+Follow this process:
 
-Produce artifacts using save_artifact:
-- Architecture Document
-- Data Model / ERD (as Mermaid diagram in markdown)
-- Key User Flows
+**Part 1 — Review Auto-Generated Scaffold**
+1. Present the generated domain entities, subdomains, and events to the client.
+2. Walk through each subdomain and its entities. Ask if anything is missing or wrong.
+3. Identify aggregate roots — which entities are the primary "owners" of related data?
 
-When architecture is complete, use update_phase to move to build.""",
+**Part 2 — Refine the Model**
+4. Add missing entities, remove false positives, and adjust relationships.
+5. Verify subdomain boundaries make sense — no entity should belong to multiple subdomains.
+6. Define key domain events — what triggers them and what reacts to them.
+
+**Part 3 — Produce Artifacts**
+7. Create a Domain Model artifact using save_artifact (artifact_type="architecture_doc") containing:
+   - Entity list with properties and relationships
+   - Subdomain map
+   - Event catalog
+   - ER diagram (Mermaid)
+8. Get explicit confirmation from the client, then use update_phase to move to build.
+
+Use save_entity to capture any new decisions or constraints that emerge.""",
 }
 
 DEFAULT_INSTRUCTIONS = """You are a helpful AI project manager guiding software development. Help the client with their current needs based on the project's phase and context."""
@@ -151,10 +166,12 @@ def build_system_prompt(project: Project, artifacts: list[Artifact]) -> str:
 
     parts.append(f"Current Phase: {project.current_phase.value}")
 
-    # Map legacy phases (e.g. requirements) to their replacement
+    # Map legacy phases to their replacement
     effective_phase = project.current_phase
-    if effective_phase == ProjectPhase.REQUIREMENTS:
-        effective_phase = ProjectPhase.INTAKE
+    if effective_phase in (ProjectPhase.INTAKE, ProjectPhase.REQUIREMENTS):
+        effective_phase = ProjectPhase.DISCOVERY
+    elif effective_phase == ProjectPhase.ARCHITECTURE:
+        effective_phase = ProjectPhase.DOMAIN_DESIGN
 
     phase_instructions = PHASE_INSTRUCTIONS.get(
         effective_phase, DEFAULT_INSTRUCTIONS
@@ -176,8 +193,8 @@ def build_system_prompt(project: Project, artifacts: list[Artifact]) -> str:
         "\n- Summarize back what you hear"
         "\n- Be conversational and friendly"
         "\n- Probe for specifics when answers are vague"
-        "\n- Flag potential scope creep early"
-        "\n- Use save_entity to capture requirements, decisions, constraints, and assumptions as they emerge — don't wait"
+        "\n- Flag potential scope creep early — redirect non-MVP ideas to the out-of-scope artifact"
+        "\n- Use save_entity to capture MVP requirements, decisions, constraints, and assumptions as they emerge — don't wait"
         "\n- Use save_artifact to produce structured documents when ready"
         "\n- Use update_phase when the current phase is complete"
     )

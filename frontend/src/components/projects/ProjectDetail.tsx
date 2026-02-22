@@ -12,13 +12,16 @@ interface ProjectDetailProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  intake: 'Intake',
-  requirements: 'Requirements',
-  architecture: 'Architecture',
+  discovery: 'Discovery',
+  domain_design: 'Domain Design',
   build: 'Build',
   deploy: 'Deploy',
   handoff: 'Handoff',
   complete: 'Complete',
+  // Legacy mappings
+  intake: 'Discovery',
+  requirements: 'Discovery',
+  architecture: 'Domain Design',
 }
 
 type Tab = 'chat' | 'artifacts' | 'entities'

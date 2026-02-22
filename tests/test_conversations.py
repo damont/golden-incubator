@@ -30,7 +30,7 @@ async def project_with_auth(client):
         name="Test Project",
         description="Testing conversations",
         owner_id=user.id,
-        phase_history=[PhaseHistoryEntry(phase="intake", entered_at=now)],
+        phase_history=[PhaseHistoryEntry(phase="discovery", entered_at=now)],
     )
     await project.insert()
     return client, str(project.id)

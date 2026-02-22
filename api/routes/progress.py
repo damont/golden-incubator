@@ -13,10 +13,12 @@ from beanie import PydanticObjectId
 
 from api.schemas.orm.project import Project, ProjectPhase, PhaseHistoryEntry
 from api.schemas.orm.entity import Entity, EntityType, EntityStatus
+from api.schemas.orm.ddd import DomainEntity
 from api.schemas.orm.note import Note, NoteType, ActivityLog
 from api.schemas.orm.artifact import Artifact
 from api.utils.auth import get_current_user
 from api.schemas.orm.user import User
+from api.services.ddd_generator import ddd_generator
 
 router = APIRouter(prefix="/api/projects/{project_id}/progress", tags=["progress"])
 
@@ -96,7 +98,9 @@ class PhaseAdvanceResponse(BaseModel):
 
 # Map legacy phases that were removed from the flow to their replacement
 _LEGACY_PHASE_MAP = {
-    ProjectPhase.REQUIREMENTS: ProjectPhase.INTAKE,
+    ProjectPhase.INTAKE: ProjectPhase.DISCOVERY,
+    ProjectPhase.REQUIREMENTS: ProjectPhase.DISCOVERY,
+    ProjectPhase.ARCHITECTURE: ProjectPhase.DOMAIN_DESIGN,
 }
 
 
@@ -106,9 +110,8 @@ def _effective_phase(phase: ProjectPhase) -> ProjectPhase:
 
 
 PHASE_ORDER = [
-    ProjectPhase.INTAKE,
-    ProjectPhase.REQUIREMENTS,
-    ProjectPhase.ARCHITECTURE,
+    ProjectPhase.DISCOVERY,
+    ProjectPhase.DOMAIN_DESIGN,
     ProjectPhase.BUILD,
     ProjectPhase.DEPLOY,
     ProjectPhase.HANDOFF,
@@ -116,17 +119,13 @@ PHASE_ORDER = [
 ]
 
 PHASE_INFO = {
-    ProjectPhase.INTAKE: {
-        "name": "Intake",
-        "description": "Discovery and problem definition",
+    ProjectPhase.DISCOVERY: {
+        "name": "Discovery",
+        "description": "Problem definition and MVP requirements gathering",
     },
-    ProjectPhase.REQUIREMENTS: {
-        "name": "Requirements",
-        "description": "Detailed requirements gathering and documentation",
-    },
-    ProjectPhase.ARCHITECTURE: {
-        "name": "Architecture",
-        "description": "System design and technical planning",
+    ProjectPhase.DOMAIN_DESIGN: {
+        "name": "Domain Design",
+        "description": "DDD modeling — entities, subdomains, and events",
     },
     ProjectPhase.BUILD: {
         "name": "Build",
@@ -143,6 +142,19 @@ PHASE_INFO = {
     ProjectPhase.COMPLETE: {
         "name": "Complete",
         "description": "Project delivered and closed",
+    },
+    # Legacy entries so old phase_history records still render
+    ProjectPhase.INTAKE: {
+        "name": "Discovery",
+        "description": "Problem definition and MVP requirements gathering",
+    },
+    ProjectPhase.REQUIREMENTS: {
+        "name": "Discovery",
+        "description": "Detailed requirements gathering and documentation",
+    },
+    ProjectPhase.ARCHITECTURE: {
+        "name": "Domain Design",
+        "description": "System design and technical planning",
     },
 }
 
@@ -320,8 +332,8 @@ async def advance_phase(
         if open_q > 0:
             warnings.append(f"{open_q} questions still open")
 
-        # Check for unconfirmed requirements (in intake phase)
-        if project.current_phase == ProjectPhase.INTAKE:
+        # Check for unconfirmed requirements (in discovery phase)
+        if _effective_phase(project.current_phase) == ProjectPhase.DISCOVERY:
             unconfirmed = await Entity.find({
                 "project_id": project.id,
                 "entity_type": EntityType.REQUIREMENT,
@@ -384,6 +396,20 @@ async def advance_phase(
         to_phase=next_phase,
         created_by="system",
     ).insert()
+
+    # Auto-generate DDD scaffold when entering Domain Design (if none exists)
+    if next_phase == ProjectPhase.DOMAIN_DESIGN:
+        existing = await DomainEntity.find(
+            DomainEntity.project_id == project.id
+        ).count()
+        if existing == 0:
+            scaffold = await ddd_generator.generate_from_project(project)
+            if scaffold["entities"] or scaffold["subdomains"] or scaffold["events"]:
+                await ddd_generator.save_scaffold(
+                    entities=scaffold["entities"],
+                    subdomains=scaffold["subdomains"],
+                    events=scaffold["events"],
+                )
 
     return PhaseAdvanceResponse(
         success=True,

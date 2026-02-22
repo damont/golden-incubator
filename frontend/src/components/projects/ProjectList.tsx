@@ -7,23 +7,29 @@ interface ProjectListProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
-  intake: 'Intake',
-  requirements: 'Requirements',
-  architecture: 'Architecture',
+  discovery: 'Discovery',
+  domain_design: 'Domain Design',
   build: 'Build',
   deploy: 'Deploy',
   handoff: 'Handoff',
   complete: 'Complete',
+  // Legacy mappings
+  intake: 'Discovery',
+  requirements: 'Discovery',
+  architecture: 'Domain Design',
 }
 
 const PHASE_COLORS: Record<string, string> = {
-  intake: 'var(--success)',
-  requirements: 'var(--accent)',
-  architecture: 'var(--warning)',
+  discovery: 'var(--success)',
+  domain_design: 'var(--warning)',
   build: '#c084fc',
   deploy: '#f472b6',
   handoff: '#22d3ee',
   complete: 'var(--text-muted)',
+  // Legacy mappings
+  intake: 'var(--success)',
+  requirements: 'var(--success)',
+  architecture: 'var(--warning)',
 }
 
 export default function ProjectList({ onNavigate }: ProjectListProps) {
@@ -85,10 +91,30 @@ export default function ProjectList({ onNavigate }: ProjectListProps) {
                 </span>
               </div>
               {project.description && (
-                <p className="text-sm line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                <p className="text-sm line-clamp-2 mb-3" style={{ color: 'var(--text-secondary)' }}>
                   {project.description}
                 </p>
               )}
+              <div className="mt-auto pt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Progress</span>
+                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    {project.percent_complete}%
+                  </span>
+                </div>
+                <div
+                  className="w-full h-1.5 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'var(--border-color)' }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${project.percent_complete}%`,
+                      backgroundColor: PHASE_COLORS[project.current_phase] || 'var(--accent)',
+                    }}
+                  />
+                </div>
+              </div>
             </a>
           ))}
         </div>

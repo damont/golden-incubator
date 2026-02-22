@@ -11,6 +11,7 @@ export interface Project {
   name: string
   description: string | null
   current_phase: ProjectPhase
+  percent_complete: number
   phase_history: PhaseHistoryEntry[]
   github_repo_url: string | null
   created_at: string
@@ -18,13 +19,16 @@ export interface Project {
 }
 
 export type ProjectPhase =
-  | 'intake'
-  | 'requirements'
-  | 'architecture'
+  | 'discovery'
+  | 'domain_design'
   | 'build'
   | 'deploy'
   | 'handoff'
   | 'complete'
+  // Legacy values (old documents in MongoDB)
+  | 'intake'
+  | 'requirements'
+  | 'architecture'
 
 export interface PhaseHistoryEntry {
   phase: ProjectPhase

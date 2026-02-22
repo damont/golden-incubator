@@ -64,24 +64,18 @@ class Step(Document):
 
 # Default steps for each phase
 DEFAULT_PHASE_STEPS = {
-    ProjectPhase.INTAKE: [
+    ProjectPhase.DISCOVERY: [
         {"name": "Problem Discovery", "slug": "problem-discovery", "description": "Understand the core problem being solved"},
         {"name": "Stakeholder Analysis", "slug": "stakeholders", "description": "Identify who will use and be affected by the system"},
         {"name": "Initial Scope", "slug": "scope", "description": "Define boundaries and high-level goals"},
         {"name": "Success Criteria", "slug": "success-criteria", "description": "Define what success looks like"},
+        {"name": "MVP Requirements", "slug": "mvp-requirements", "description": "Identify essential launch-day features"},
     ],
-    ProjectPhase.REQUIREMENTS: [
-        {"name": "User Stories", "slug": "user-stories", "description": "Capture user needs as stories"},
-        {"name": "Functional Requirements", "slug": "functional-requirements", "description": "What the system must do"},
-        {"name": "Non-Functional Requirements", "slug": "non-functional-requirements", "description": "Performance, security, scalability needs"},
-        {"name": "Acceptance Criteria", "slug": "acceptance-criteria", "description": "How we'll verify requirements are met"},
-    ],
-    ProjectPhase.ARCHITECTURE: [
-        {"name": "Domain Model", "slug": "domain-model", "description": "DDD entities, subdomains, and events"},
-        {"name": "System Design", "slug": "system-design", "description": "High-level architecture and components"},
-        {"name": "Data Model", "slug": "data-model", "description": "Database schema and relationships"},
-        {"name": "API Design", "slug": "api-design", "description": "API endpoints and contracts"},
-        {"name": "Technology Stack", "slug": "tech-stack", "description": "Languages, frameworks, and tools"},
+    ProjectPhase.DOMAIN_DESIGN: [
+        {"name": "Domain Model", "slug": "domain-model", "description": "DDD entities and aggregate roots"},
+        {"name": "Entity Relationships", "slug": "entity-relationships", "description": "How entities relate to each other (ER diagram)"},
+        {"name": "Subdomain Mapping", "slug": "subdomain-mapping", "description": "Bounded contexts and their responsibilities"},
+        {"name": "Event Flows", "slug": "event-flows", "description": "Domain events and their triggers/subscribers"},
     ],
     ProjectPhase.BUILD: [
         {"name": "Project Setup", "slug": "project-setup", "description": "Repository, CI/CD, development environment"},

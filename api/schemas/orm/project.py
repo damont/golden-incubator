@@ -7,13 +7,18 @@ from pydantic import BaseModel, Field
 
 
 class ProjectPhase(str, Enum):
-    INTAKE = "intake"
-    REQUIREMENTS = "requirements"
-    ARCHITECTURE = "architecture"
+    # Active phases
+    DISCOVERY = "discovery"
+    DOMAIN_DESIGN = "domain_design"
     BUILD = "build"
     DEPLOY = "deploy"
     HANDOFF = "handoff"
     COMPLETE = "complete"
+
+    # Legacy phases (kept for Beanie deserialization of old documents)
+    INTAKE = "intake"
+    REQUIREMENTS = "requirements"
+    ARCHITECTURE = "architecture"
 
 
 class PhaseHistoryEntry(BaseModel):
@@ -31,7 +36,7 @@ class Project(Document):
     name: str
     description: Optional[str] = None
     owner_id: Indexed(PydanticObjectId)
-    current_phase: ProjectPhase = ProjectPhase.INTAKE
+    current_phase: ProjectPhase = ProjectPhase.DISCOVERY
     phase_history: list[PhaseHistoryEntry] = []
     github: Optional[GitHubConfig] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

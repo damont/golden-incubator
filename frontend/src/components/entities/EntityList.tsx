@@ -187,20 +187,22 @@ function EntityCard({ entity, onStatusChange }: EntityCardProps) {
 
   return (
     <div
-      className="p-3 rounded-lg border"
+      className="p-3 rounded-lg border cursor-pointer transition-colors"
       style={{
         backgroundColor: 'var(--bg-surface)',
-        borderColor: 'var(--border)',
+        borderColor: expanded ? 'var(--accent)' : 'var(--border)',
       }}
+      onClick={() => setExpanded(!expanded)}
     >
       {/* Header */}
       <div className="flex items-start gap-2">
         {/* Checkbox for actionable items */}
         {isActionable && (
           <button
-            onClick={() => onStatusChange(
-              entity.status === 'completed' ? 'draft' : 'completed'
-            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              onStatusChange(entity.status === 'completed' ? 'draft' : 'completed')
+            }}
             className="mt-0.5 w-5 h-5 rounded border flex items-center justify-center text-xs"
             style={{
               borderColor: entity.status === 'completed' ? '#22c55e' : 'var(--border)',
@@ -259,14 +261,18 @@ function EntityCard({ entity, onStatusChange }: EntityCardProps) {
           {statusInfo.label}
         </span>
 
-        {/* Expand Toggle */}
-        <button
-          onClick={() => setExpanded(!expanded)}
+        {/* Expand Indicator */}
+        <span
           className="text-xs"
-          style={{ color: 'var(--text-secondary)' }}
+          style={{
+            color: 'var(--text-secondary)',
+            display: 'inline-block',
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.15s ease',
+          }}
         >
-          {expanded ? '▼' : '▶'}
-        </button>
+          ›
+        </span>
       </div>
 
       {/* Tags */}
@@ -302,7 +308,7 @@ function EntityCard({ entity, onStatusChange }: EntityCardProps) {
 
       {/* Actions */}
       {expanded && !isActionable && (
-        <div className="mt-2 ml-7 flex gap-2">
+        <div className="mt-2 ml-7 flex gap-2" onClick={(e) => e.stopPropagation()}>
           {entity.status === 'draft' && (
             <>
               <button

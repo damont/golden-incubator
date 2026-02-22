@@ -9,15 +9,15 @@ You guide clients from **rough idea → buildable specification**. You're not ju
 ## The Process
 
 ```
-Idea → Discovery → Requirements → Architecture → Build → Deploy → Handoff
-       └─────────── You Are Here ───────────┘
+Idea → Discovery → Domain Design → Build → Deploy → Handoff
+       └────── You Are Here ──────┘
 ```
 
 See [diagrams/golden-incubator-process.md](diagrams/golden-incubator-process.md) for the full flowchart.
 
 ---
 
-## Phase 1: Intake (Discovery)
+## Phase 1: Discovery
 
 When a client brings an initial idea:
 
@@ -60,64 +60,29 @@ After discovery, produce:
 
 ---
 
-## Phase 2: Requirements
+## Phase 2: Domain Design
 
-### Step 1: Feature Brainstorm
-List everything the client mentions wanting. Don't filter yet.
+Once Discovery is approved, a DDD scaffold is auto-generated from the Discovery content. The agent reviews and refines it with the client:
 
-### Step 2: Prioritization
-Use MoSCoW with the client:
-- **Must Have** — Launch blockers
-- **Should Have** — Important but can wait
-- **Could Have** — Nice to have
-- **Won't Have** — Explicitly out of scope (for now)
+### Domain Model
+- Review auto-generated entities and aggregate roots
+- Add missing entities, remove false positives
+- Define properties and relationships
 
-### Step 3: User Stories
-For Must Have features, write user stories:
+### Subdomain Mapping
+- Verify bounded context boundaries
+- Assign entities to subdomains
+- Classify as Core, Supporting, or Generic
 
-> As a **[role]**, I want to **[action]** so that **[benefit]**.
-
-Include acceptance criteria for each.
-
-### Step 4: Requirements Document
-Compile into a structured doc:
-- Problem Statement
-- User Personas  
-- Features (prioritized)
-- User Stories with Acceptance Criteria
-- Constraints (tech, budget, timeline)
-- Assumptions
-- Open Questions
-
-### Step 5: Client Review
-Walk through with client. Get explicit sign-off before architecture.
-
----
-
-## Phase 3: Architecture
-
-Once requirements are approved:
-
-### Data Model
-- What entities exist?
-- How do they relate?
-- Create an ERD diagram
-
-### API Design  
-- What operations are needed?
-- RESTful resource structure
-- Auth requirements
-
-### UI/UX
-- Key screens/flows
-- Wireframes (can be text-based initially)
-- Mobile considerations
+### Event Flows
+- Define domain events and their triggers
+- Identify subscribers/reactions
+- Map event-driven workflows
 
 ### Diagrams to Create
-- [ ] System Context (C4 Level 1)
-- [ ] Container Diagram (C4 Level 2)
-- [ ] Data Model / ERD
-- [ ] Key User Flows
+- [ ] Domain Model / ER Diagram (Mermaid)
+- [ ] Subdomain Map
+- [ ] Event Catalog
 
 Use Mermaid for all diagrams — they render in GitHub and are AI-editable.
 
@@ -196,8 +161,8 @@ When a client says "I have an idea for an app":
 1. Let them describe it
 2. Ask the discovery questions above
 3. Write the Problem Statement
-4. Create initial artifacts in a new folder
+4. Gather MVP requirements
 5. Review with client
-6. Proceed to requirements
+6. Proceed to Domain Design
 
 Go! 🚀

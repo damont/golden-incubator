@@ -19,6 +19,7 @@ from api.schemas.orm.ddd import (
     SubdomainType,
 )
 from api.schemas.orm.project import Project, ProjectPhase
+from api.routes.progress import _effective_phase
 from api.utils.auth import get_current_user
 from api.schemas.orm.user import User
 from api.services.ddd_generator import ddd_generator
@@ -215,11 +216,11 @@ async def generate_ddd_scaffold(
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Check if intake is complete
-    if project.current_phase == ProjectPhase.INTAKE:
+    # Check if discovery is complete
+    if _effective_phase(project.current_phase) == ProjectPhase.DISCOVERY:
         raise HTTPException(
             status_code=400,
-            detail="Intake phase should be completed before generating DDD scaffold"
+            detail="Discovery phase should be completed before generating DDD scaffold"
         )
     
     # Generate scaffold

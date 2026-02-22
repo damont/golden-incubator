@@ -27,7 +27,7 @@ async def project_with_auth(client):
     project = Project(
         name="Artifact Project",
         owner_id=user.id,
-        phase_history=[PhaseHistoryEntry(phase="intake", entered_at=now)],
+        phase_history=[PhaseHistoryEntry(phase="discovery", entered_at=now)],
     )
     await project.insert()
     return client, str(project.id)
@@ -47,7 +47,7 @@ async def test_create_artifact(project_with_auth):
     assert data["artifact_type"] == "problem_statement"
     assert data["version"] == 1
     assert data["step_order"] == 1
-    assert data["phase"] == "intake"
+    assert data["phase"] == "discovery"
 
 
 @pytest.mark.anyio
