@@ -46,30 +46,6 @@ Decide now — it affects project structure and CI/CD:
 
 ---
 
-## Choose Ports
-
-Every app needs unique ports. Check this table before picking:
-
-| Port | Service | App |
-|------|---------|-----|
-| 3000 | Frontend | calendarapp |
-| 5000 | App | todoozey |
-| 8005 | API (internal Docker) | calendarapp |
-| 8010 | API | track |
-| 8080 | App | Nextcloud |
-| 8081 | Reverse proxy | nginx |
-| 8085 | API (production) | calendarapp |
-| 8090 | Frontend | track |
-| 8123 | App | Home Assistant |
-| 9000 | App | Portainer |
-| 27017 | Database | MongoDB |
-
-**Available ranges**: 8020-8049 (APIs), 8095-8099 or 3001+ (frontends).
-
-The examples in these phase docs use **8020** (API) and **8095** (frontend) as placeholders — replace with your actual chosen ports.
-
----
-
 ## Project Structure
 
 Create this directory layout:
@@ -227,8 +203,6 @@ Save as `<appname>/database-design.drawio` and keep it updated as the schema evo
 
 ## Checklist
 
-- [ ] Deployment path chosen (Pi or Azure)
-- [ ] Unique ports chosen and documented
 - [ ] Directory structure created
 - [ ] `pyproject.toml` created with all dependencies
 - [ ] `uv sync` runs successfully

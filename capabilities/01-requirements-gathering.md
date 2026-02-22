@@ -37,7 +37,7 @@ flowchart TD
     J -->|Changes| C
     J -->|Approved| K[Final Requirements Doc]
     K --> L[MVP Scope Definition]
-    L --> M[Ready for Build Phase]
+    L --> M[Ready for Domain Design Phase]
 ```
 
 ## Outputs
@@ -57,9 +57,8 @@ flowchart TD
 - Performance requirements
 
 ### 3. MVP Definition
-- Day-1 features (absolute minimum)
-- Week-1 features (core functionality)
-- Future features (backlog)
+- Day-1 features (absolute minimum to launch)
+- Core functionality (essential for the product to be useful)
 
 ## Question Framework
 
@@ -91,7 +90,7 @@ The AI should cover these areas:
 
 ### Scope & Priorities
 - What's the ONE thing this must do?
-- What can wait for v2?
+- What's explicitly out of scope for the MVP?
 - What's the timeline?
 - What's the budget range?
 
@@ -122,12 +121,11 @@ The AI should cover these areas:
 [Mermaid ER diagram]
 
 ## MVP Scope
-### Must Have (Day 1)
-- 
-### Should Have (Week 1)
-- 
-### Could Have (Later)
-- 
+### Must Have (Launch)
+-
+
+## Out of Scope
+[Captured separately — see "Out of Scope — Future Ideas" artifact]
 
 ## Technical Requirements
 - Auth: [approach]

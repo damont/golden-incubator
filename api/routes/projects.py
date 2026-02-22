@@ -10,13 +10,21 @@ from api.schemas.dto.project import (
     ProjectResponse,
     ProjectUpdate,
 )
-from api.schemas.orm.project import GitHubConfig, PhaseHistoryEntry, Project
+from api.schemas.orm.project import GitHubConfig, PhaseHistoryEntry, Project, ProjectPhase
 from api.schemas.orm.user import User
 from api.services.encryption import encrypt_pat
 from api.utils.auth import get_current_user
+from api.routes.progress import PHASE_ORDER, _effective_phase
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _compute_percent_complete(project: Project) -> int:
+    if project.current_phase == ProjectPhase.COMPLETE:
+        return 100
+    current_idx = PHASE_ORDER.index(_effective_phase(project.current_phase))
+    return int((current_idx / (len(PHASE_ORDER) - 1)) * 100)
 
 
 def project_to_response(project: Project) -> ProjectResponse:
@@ -25,6 +33,7 @@ def project_to_response(project: Project) -> ProjectResponse:
         name=project.name,
         description=project.description,
         current_phase=project.current_phase.value,
+        percent_complete=_compute_percent_complete(project),
         phase_history=[
             PhaseHistoryResponse(
                 phase=ph.phase.value,
@@ -62,7 +71,7 @@ async def create_project(data: ProjectCreate, user: User = Depends(get_current_u
         description=data.description,
         owner_id=user.id,
         phase_history=[
-            PhaseHistoryEntry(phase="intake", entered_at=now)
+            PhaseHistoryEntry(phase=ProjectPhase.DISCOVERY, entered_at=now)
         ],
         github=github,
         created_at=now,

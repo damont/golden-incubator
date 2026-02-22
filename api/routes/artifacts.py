@@ -7,10 +7,26 @@ from fastapi.responses import Response
 
 from api.schemas.dto.artifact import ArtifactCreate, ArtifactResponse
 from api.schemas.orm.artifact import Artifact, ArtifactType
-from api.schemas.orm.project import Project
+from api.schemas.orm.project import Project, ProjectPhase
 from api.schemas.orm.user import User
 from api.services.storage import get_storage
 from api.utils.auth import get_current_user
+
+# Legacy phases that were consolidated into current phases
+_LEGACY_PHASE_MAP = {
+    ProjectPhase.INTAKE: ProjectPhase.DISCOVERY,
+    ProjectPhase.REQUIREMENTS: ProjectPhase.DISCOVERY,
+    ProjectPhase.ARCHITECTURE: ProjectPhase.DOMAIN_DESIGN,
+}
+
+
+def _phase_aliases(phase: ProjectPhase) -> list[str]:
+    """Return all phase values (current + legacy) that map to this phase."""
+    aliases = [phase.value]
+    for legacy, target in _LEGACY_PHASE_MAP.items():
+        if target == phase:
+            aliases.append(legacy.value)
+    return aliases
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,10 +34,11 @@ router = APIRouter()
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
-async def _next_step_order(project_id: PydanticObjectId, phase) -> int:
+async def _next_step_order(project_id: PydanticObjectId, phase: ProjectPhase) -> int:
     """Get the next step_order for a new artifact in a project+phase."""
+    phase_values = _phase_aliases(phase)
     last = await Artifact.find(
-        {"project_id": project_id, "phase": phase}
+        {"project_id": project_id, "phase": {"$in": phase_values}}
     ).sort("-step_order").limit(1).to_list()
     return (last[0].step_order + 1) if last else 1
 

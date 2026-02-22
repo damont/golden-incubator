@@ -13,10 +13,12 @@ from beanie import PydanticObjectId
 
 from api.schemas.orm.project import Project, ProjectPhase, PhaseHistoryEntry
 from api.schemas.orm.entity import Entity, EntityType, EntityStatus
+from api.schemas.orm.ddd import DomainEntity
 from api.schemas.orm.note import Note, NoteType, ActivityLog
 from api.schemas.orm.artifact import Artifact
 from api.utils.auth import get_current_user
 from api.schemas.orm.user import User
+from api.services.ddd_generator import ddd_generator
 
 router = APIRouter(prefix="/api/projects/{project_id}/progress", tags=["progress"])
 
@@ -96,7 +98,9 @@ class PhaseAdvanceResponse(BaseModel):
 
 # Map legacy phases that were removed from the flow to their replacement
 _LEGACY_PHASE_MAP = {
-    ProjectPhase.REQUIREMENTS: ProjectPhase.INTAKE,
+    ProjectPhase.INTAKE: ProjectPhase.DISCOVERY,
+    ProjectPhase.REQUIREMENTS: ProjectPhase.DISCOVERY,
+    ProjectPhase.ARCHITECTURE: ProjectPhase.DOMAIN_DESIGN,
 }
 
 
@@ -106,8 +110,8 @@ def _effective_phase(phase: ProjectPhase) -> ProjectPhase:
 
 
 PHASE_ORDER = [
-    ProjectPhase.INTAKE,
-    ProjectPhase.ARCHITECTURE,
+    ProjectPhase.DISCOVERY,
+    ProjectPhase.DOMAIN_DESIGN,
     ProjectPhase.BUILD,
     ProjectPhase.DEPLOY,
     ProjectPhase.HANDOFF,
@@ -115,13 +119,13 @@ PHASE_ORDER = [
 ]
 
 PHASE_INFO = {
-    ProjectPhase.INTAKE: {
-        "name": "Intake",
-        "description": "Discovery, requirements gathering, and problem definition",
+    ProjectPhase.DISCOVERY: {
+        "name": "Discovery",
+        "description": "Problem definition and MVP requirements gathering",
     },
-    ProjectPhase.ARCHITECTURE: {
-        "name": "Architecture",
-        "description": "System design and technical planning",
+    ProjectPhase.DOMAIN_DESIGN: {
+        "name": "Domain Design",
+        "description": "DDD modeling — entities, subdomains, and events",
     },
     ProjectPhase.BUILD: {
         "name": "Build",
@@ -139,7 +143,30 @@ PHASE_INFO = {
         "name": "Complete",
         "description": "Project delivered and closed",
     },
+    # Legacy entries so old phase_history records still render
+    ProjectPhase.INTAKE: {
+        "name": "Discovery",
+        "description": "Problem definition and MVP requirements gathering",
+    },
+    ProjectPhase.REQUIREMENTS: {
+        "name": "Discovery",
+        "description": "Detailed requirements gathering and documentation",
+    },
+    ProjectPhase.ARCHITECTURE: {
+        "name": "Domain Design",
+        "description": "System design and technical planning",
+    },
 }
+
+# Reverse map: current phase → list of all phase values to query
+# (includes the phase itself plus any legacy phases that map to it)
+_PHASE_QUERY_VALUES: dict[ProjectPhase, list[str]] = {}
+for _phase in PHASE_ORDER:
+    _aliases = [_phase.value]
+    for _legacy, _target in _LEGACY_PHASE_MAP.items():
+        if _target == _phase:
+            _aliases.append(_legacy.value)
+    _PHASE_QUERY_VALUES[_phase] = _aliases
 
 
 # ============================================================================
@@ -179,9 +206,10 @@ async def get_progress(
         # Get history entry
         history = phase_history.get(phase)
 
-        # Get artifacts for this phase, sorted by step_order
+        # Get artifacts for this phase (including legacy phase aliases)
+        phase_values = _PHASE_QUERY_VALUES.get(phase, [phase.value])
         artifacts = await Artifact.find(
-            {"project_id": project.id, "phase": phase}
+            {"project_id": project.id, "phase": {"$in": phase_values}}
         ).sort("step_order").to_list()
 
         steps = [
@@ -198,7 +226,7 @@ async def get_progress(
 
         notes = await Note.find({
             "project_id": project.id,
-            "phase": phase,
+            "phase": {"$in": phase_values},
         }).count()
 
         info = PHASE_INFO[phase]
@@ -315,8 +343,8 @@ async def advance_phase(
         if open_q > 0:
             warnings.append(f"{open_q} questions still open")
 
-        # Check for unconfirmed requirements (in intake phase)
-        if project.current_phase == ProjectPhase.INTAKE:
+        # Check for unconfirmed requirements (in discovery phase)
+        if _effective_phase(project.current_phase) == ProjectPhase.DISCOVERY:
             unconfirmed = await Entity.find({
                 "project_id": project.id,
                 "entity_type": EntityType.REQUIREMENT,
@@ -379,6 +407,20 @@ async def advance_phase(
         to_phase=next_phase,
         created_by="system",
     ).insert()
+
+    # Auto-generate DDD scaffold when entering Domain Design (if none exists)
+    if next_phase == ProjectPhase.DOMAIN_DESIGN:
+        existing = await DomainEntity.find(
+            DomainEntity.project_id == project.id
+        ).count()
+        if existing == 0:
+            scaffold = await ddd_generator.generate_from_project(project)
+            if scaffold["entities"] or scaffold["subdomains"] or scaffold["events"]:
+                await ddd_generator.save_scaffold(
+                    entities=scaffold["entities"],
+                    subdomains=scaffold["subdomains"],
+                    events=scaffold["events"],
+                )
 
     return PhaseAdvanceResponse(
         success=True,

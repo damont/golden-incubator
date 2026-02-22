@@ -17,9 +17,9 @@ async def test_create_project(authenticated_client):
     assert res.status_code == 201
     data = res.json()
     assert data["name"] == "Test Project"
-    assert data["current_phase"] == "intake"
+    assert data["current_phase"] == "discovery"
     assert len(data["phase_history"]) == 1
-    assert data["phase_history"][0]["phase"] == "intake"
+    assert data["phase_history"][0]["phase"] == "discovery"
 
 
 @pytest.mark.anyio
