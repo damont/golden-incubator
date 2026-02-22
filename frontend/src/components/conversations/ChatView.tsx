@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../../api/client'
+import { useAgentStream } from '../../hooks/useAgentStream'
 import type { Artifact, Conversation, Message, ProjectPhase } from '../../types'
+import AgentStatus from './AgentStatus'
 import MessageBubble from './MessageBubble'
 
 interface ChatViewProps {
@@ -15,8 +17,11 @@ export default function ChatView({ projectId, onMessageSent }: ChatViewProps) {
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [loadingConv, setLoadingConv] = useState(true)
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const agentStream = useAgentStream(activeJobId)
 
   useEffect(() => {
     api.get<Conversation[]>(`/api/projects/${projectId}/conversations`)
@@ -31,9 +36,37 @@ export default function ChatView({ projectId, onMessageSent }: ChatViewProps) {
       .finally(() => setLoadingConv(false))
   }, [projectId])
 
+  // When agent stream completes, add the assistant message
+  useEffect(() => {
+    if (agentStream.isComplete && agentStream.status === 'complete' && agentStream.assistantText) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: agentStream.assistantText!,
+          timestamp: new Date().toISOString(),
+        },
+      ])
+      setActiveJobId(null)
+      setSending(false)
+      onMessageSent?.()
+    } else if (agentStream.isComplete && agentStream.status === 'error') {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Sorry, something went wrong. Please try again.',
+          timestamp: new Date().toISOString(),
+        },
+      ])
+      setActiveJobId(null)
+      setSending(false)
+    }
+  }, [agentStream.isComplete, agentStream.status, agentStream.assistantText])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, agentStream.status])
 
   const handleSend = async () => {
     if (!input.trim() || sending) return
@@ -49,21 +82,13 @@ export default function ChatView({ projectId, onMessageSent }: ChatViewProps) {
     setMessages(prev => [...prev, userMsg])
 
     try {
-      const response = await api.post<Message>(
-        `/api/projects/${projectId}/messages`,
-        { content: userMessage }
-      )
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: response.content, timestamp: new Date().toISOString() },
-      ])
-      onMessageSent?.()
+      const { job_id } = await api.sendMessage(projectId, userMessage)
+      setActiveJobId(job_id)
     } catch {
       setMessages(prev => [
         ...prev,
         { role: 'assistant', content: 'Sorry, something went wrong. Please try again.', timestamp: new Date().toISOString() },
       ])
-    } finally {
       setSending(false)
     }
   }
@@ -126,9 +151,12 @@ export default function ChatView({ projectId, onMessageSent }: ChatViewProps) {
           <MessageBubble key={i} message={msg} />
         ))}
         {sending && (
-          <div className="flex items-center gap-2 px-4 py-3" style={{ color: 'var(--text-secondary)' }}>
-            <span className="animate-pulse">Thinking...</span>
-          </div>
+          <AgentStatus
+            status={agentStream.status}
+            currentTool={agentStream.currentTool}
+            toolSummary={agentStream.toolSummary}
+            iteration={agentStream.iteration}
+          />
         )}
         {uploading && (
           <div className="flex items-center gap-2 px-4 py-3" style={{ color: 'var(--text-secondary)' }}>

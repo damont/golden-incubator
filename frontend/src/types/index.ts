@@ -158,6 +158,23 @@ export interface Entity {
   updated_at: string
 }
 
+// ============================================================================
+// Jobs & Streaming
+// ============================================================================
+
+export interface JobResponse {
+  job_id: string
+  status: string
+}
+
+export interface JobStatusResponse {
+  job_id: string
+  status: string
+  result: string | null
+  conversation_id: string | null
+  error: string | null
+}
+
 export type NoteType =
   | 'user_note'
   | 'agent_note'

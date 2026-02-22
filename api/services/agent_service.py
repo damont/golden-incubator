@@ -11,6 +11,7 @@ from api.schemas.orm.conversation import Conversation, Message
 from api.schemas.orm.entity import Entity, EntityCounter, EntityType
 from api.schemas.orm.note import ActivityLog
 from api.schemas.orm.project import Project, ProjectPhase
+from api.services.status_reporter import NullStatusReporter, StatusReporter
 
 logger = logging.getLogger(__name__)
 
@@ -363,8 +364,13 @@ async def handle_tool_call(
 
 
 async def send_message(
-    project_id: str, user_message: str
+    project_id: str,
+    user_message: str,
+    reporter: StatusReporter | None = None,
 ) -> tuple[str, Conversation]:
+    if reporter is None:
+        reporter = NullStatusReporter()
+
     settings = get_settings()
     if not settings.anthropic_api_key:
         raise ValueError("ANTHROPIC_API_KEY not configured")
@@ -393,56 +399,68 @@ async def send_message(
         for m in conversation.messages
     ]
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     # Agent loop - keep calling until no more tool use
     assistant_text = ""
     max_iterations = 10
 
-    for _ in range(max_iterations):
-        response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=4096,
-            system=system_prompt,
-            messages=api_messages,
-            tools=TOOLS,
-        )
+    try:
+        for iteration in range(1, max_iterations + 1):
+            await reporter.report_thinking(iteration)
 
-        # Collect text blocks and tool use blocks
-        text_parts = []
-        tool_uses = []
-        for block in response.content:
-            if block.type == "text":
-                text_parts.append(block.text)
-            elif block.type == "tool_use":
-                tool_uses.append(block)
-
-        if text_parts:
-            assistant_text = "\n".join(text_parts)
-
-        if not tool_uses:
-            # No tool calls - we're done
-            break
-
-        # Process tool calls
-        # Add the full assistant response to messages
-        api_messages.append({"role": "assistant", "content": response.content})
-
-        # Execute each tool and collect results
-        tool_results = []
-        for tool_use in tool_uses:
-            result = await handle_tool_call(
-                tool_use.name, tool_use.input, project
-            )
-            tool_results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": tool_use.id,
-                    "content": result,
-                }
+            response = await client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=4096,
+                system=system_prompt,
+                messages=api_messages,
+                tools=TOOLS,
             )
 
-        api_messages.append({"role": "user", "content": tool_results})
+            # Collect text blocks and tool use blocks
+            text_parts = []
+            tool_uses = []
+            for block in response.content:
+                if block.type == "text":
+                    text_parts.append(block.text)
+                elif block.type == "tool_use":
+                    tool_uses.append(block)
+
+            if text_parts:
+                assistant_text = "\n".join(text_parts)
+
+            if not tool_uses:
+                # No tool calls - we're done
+                break
+
+            # Process tool calls
+            # Add the full assistant response to messages
+            api_messages.append({"role": "assistant", "content": response.content})
+
+            # Execute each tool and collect results
+            tool_results = []
+            for tool_use in tool_uses:
+                await reporter.report_tool_call(tool_use.name, tool_use.input)
+
+                result = await handle_tool_call(
+                    tool_use.name, tool_use.input, project
+                )
+
+                await reporter.report_tool_result(tool_use.name, result)
+
+                tool_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": result,
+                    }
+                )
+
+            api_messages.append({"role": "user", "content": tool_results})
+
+    except Exception as e:
+        await reporter.report_error(str(e))
+        raise
 
     # Store the final assistant text in conversation
     if assistant_text:
@@ -452,5 +470,7 @@ async def send_message(
 
     conversation.updated_at = datetime.now(timezone.utc)
     await conversation.save()
+
+    await reporter.report_complete(assistant_text, str(conversation.id))
 
     return assistant_text, conversation
