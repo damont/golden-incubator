@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 10080  # 7 days
     pat_encryption_key: str = "change-me"
     anthropic_api_key: Optional[str] = None
+    redis_url: str = "redis://localhost:6379"
     upload_dir: str = "/app/uploads"
     storage_backend: str = "local"
 

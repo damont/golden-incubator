@@ -1,4 +1,5 @@
 import os
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -33,6 +34,25 @@ async def setup_test_db():
     yield
     await client.drop_database(TEST_DB_NAME)
     client.close()
+
+
+@pytest.fixture(autouse=True)
+def mock_redis(monkeypatch):
+    """Mock Redis so tests don't require a running Redis instance."""
+    mock = MagicMock()
+    mock.ping = AsyncMock()
+    mock.get = AsyncMock(return_value=None)
+    mock.set = AsyncMock()
+    mock.hset = AsyncMock()
+    mock.hgetall = AsyncMock(return_value={})
+    mock.expire = AsyncMock()
+    mock.delete = AsyncMock()
+    mock.xadd = AsyncMock(return_value="1-0")
+    mock.publish = AsyncMock()
+    mock.close = AsyncMock()
+
+    import api.services.redis as redis_mod
+    monkeypatch.setattr(redis_mod, "_redis", mock)
 
 
 @pytest.fixture

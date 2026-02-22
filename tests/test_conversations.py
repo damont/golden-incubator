@@ -1,7 +1,6 @@
 import os
 
 import pytest
-from unittest.mock import patch, MagicMock
 
 os.environ.setdefault(
     "PAT_ENCRYPTION_KEY", "t8m6pyIPdFSDDjjLoyDBJGNF4Ez4zfoJ8Vl27INnCfA="
@@ -37,34 +36,18 @@ async def project_with_auth(client):
 
 
 @pytest.mark.anyio
-async def test_send_message_with_mock_agent(project_with_auth):
+async def test_dispatch_message_job(project_with_auth):
+    """POST /messages now dispatches a job and returns a job_id."""
     client, project_id = project_with_auth
 
-    # Mock the Anthropic client
-    mock_response = MagicMock()
-    mock_text_block = MagicMock()
-    mock_text_block.type = "text"
-    mock_text_block.text = "Tell me more about your project idea!"
-    mock_response.content = [mock_text_block]
-
-    with patch("api.services.agent_service.get_settings") as mock_settings:
-        settings = MagicMock()
-        settings.anthropic_api_key = "test-key"
-        mock_settings.return_value = settings
-
-        with patch("api.services.agent_service.anthropic.Anthropic") as mock_anthropic:
-            mock_client = MagicMock()
-            mock_client.messages.create.return_value = mock_response
-            mock_anthropic.return_value = mock_client
-
-            res = await client.post(
-                f"/api/projects/{project_id}/messages",
-                json={"content": "I have an idea for a task management app"},
-            )
-            assert res.status_code == 200
-            data = res.json()
-            assert data["role"] == "assistant"
-            assert "project" in data["content"].lower() or "tell" in data["content"].lower()
+    res = await client.post(
+        f"/api/projects/{project_id}/messages",
+        json={"content": "I have an idea for a task management app"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "job_id" in data
+    assert data["status"] == "queued"
 
 
 @pytest.mark.anyio
