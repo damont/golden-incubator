@@ -249,9 +249,18 @@ async def handle_tool_call(
                 }
             )
         else:
-            # Auto-assign step_order
+            # Auto-assign step_order (include legacy phase aliases)
+            phase_aliases = [project.current_phase.value]
+            _legacy_map = {
+                ProjectPhase.INTAKE: ProjectPhase.DISCOVERY,
+                ProjectPhase.REQUIREMENTS: ProjectPhase.DISCOVERY,
+                ProjectPhase.ARCHITECTURE: ProjectPhase.DOMAIN_DESIGN,
+            }
+            for legacy, target in _legacy_map.items():
+                if target == project.current_phase:
+                    phase_aliases.append(legacy.value)
             last = await Artifact.find(
-                {"project_id": project.id, "phase": project.current_phase}
+                {"project_id": project.id, "phase": {"$in": phase_aliases}}
             ).sort("-step_order").limit(1).to_list()
             step_order = (last[0].step_order + 1) if last else 1
 

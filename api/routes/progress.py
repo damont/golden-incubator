@@ -158,6 +158,16 @@ PHASE_INFO = {
     },
 }
 
+# Reverse map: current phase → list of all phase values to query
+# (includes the phase itself plus any legacy phases that map to it)
+_PHASE_QUERY_VALUES: dict[ProjectPhase, list[str]] = {}
+for _phase in PHASE_ORDER:
+    _aliases = [_phase.value]
+    for _legacy, _target in _LEGACY_PHASE_MAP.items():
+        if _target == _phase:
+            _aliases.append(_legacy.value)
+    _PHASE_QUERY_VALUES[_phase] = _aliases
+
 
 # ============================================================================
 # Routes
@@ -196,9 +206,10 @@ async def get_progress(
         # Get history entry
         history = phase_history.get(phase)
 
-        # Get artifacts for this phase, sorted by step_order
+        # Get artifacts for this phase (including legacy phase aliases)
+        phase_values = _PHASE_QUERY_VALUES.get(phase, [phase.value])
         artifacts = await Artifact.find(
-            {"project_id": project.id, "phase": phase}
+            {"project_id": project.id, "phase": {"$in": phase_values}}
         ).sort("step_order").to_list()
 
         steps = [
@@ -215,7 +226,7 @@ async def get_progress(
 
         notes = await Note.find({
             "project_id": project.id,
-            "phase": phase,
+            "phase": {"$in": phase_values},
         }).count()
 
         info = PHASE_INFO[phase]

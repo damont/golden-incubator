@@ -60,7 +60,8 @@ async def get_job_status(job_id: str) -> dict:
     return {"job_id": job_id, **data}
 
 
-async def clear_active_lock(project_id: str) -> None:
+async def clear_active_lock(project_id: str, redis: "Redis | None" = None) -> None:
     """Remove the active job lock for a project."""
-    redis = get_redis()
+    if redis is None:
+        redis = get_redis()
     await redis.delete(f"job:active:{project_id}")

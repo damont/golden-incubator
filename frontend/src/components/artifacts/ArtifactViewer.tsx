@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import type { Artifact } from '../../types'
+import MarkdownContent from '../shared/MarkdownContent'
 
 interface ArtifactViewerProps {
   artifact: Artifact
@@ -95,16 +96,13 @@ export default function ArtifactViewer({ artifact }: ArtifactViewerProps) {
         </div>
       ) : (
         <div
-          className="p-4 rounded-lg border prose prose-invert max-w-none"
+          className="p-4 rounded-lg border"
           style={{
             backgroundColor: 'var(--bg-surface)',
             borderColor: 'var(--border-color)',
-            whiteSpace: 'pre-wrap',
-            fontFamily: 'inherit',
-            lineHeight: '1.7',
           }}
         >
-          {artifact.content}
+          <MarkdownContent content={artifact.content} />
         </div>
       )}
     </div>

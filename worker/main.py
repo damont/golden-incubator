@@ -36,7 +36,7 @@ async def process_job(redis: Redis, job_id: str, project_id: str, user_message: 
         await reporter.report_error(str(e))
     finally:
         # Always clear the active lock so new jobs can be dispatched
-        await clear_active_lock(project_id)
+        await clear_active_lock(project_id, redis=redis)
 
 
 async def run_worker(redis_url: str) -> None:
