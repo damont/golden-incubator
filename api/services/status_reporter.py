@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 class StatusReporter(Protocol):
     async def report_thinking(self, iteration: int) -> None: ...
+    async def report_generating(self, detail: str) -> None: ...
     async def report_tool_call(self, tool_name: str, tool_input: dict) -> None: ...
     async def report_tool_result(self, tool_name: str, result: str) -> None: ...
     async def report_complete(self, text: str, conversation_id: str) -> None: ...
@@ -19,6 +20,9 @@ class NullStatusReporter:
     """No-op reporter for tests and direct calls."""
 
     async def report_thinking(self, iteration: int) -> None:
+        pass
+
+    async def report_generating(self, detail: str) -> None:
         pass
 
     async def report_tool_call(self, tool_name: str, tool_input: dict) -> None:
@@ -51,6 +55,9 @@ class RedisStatusReporter:
 
     async def report_thinking(self, iteration: int) -> None:
         await self._publish("thinking", {"iteration": iteration})
+
+    async def report_generating(self, detail: str) -> None:
+        await self._publish("generating", {"detail": detail})
 
     async def report_tool_call(self, tool_name: str, tool_input: dict) -> None:
         # Summarize input to avoid publishing large payloads

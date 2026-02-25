@@ -10,7 +10,7 @@ interface ArtifactListProps {
 const TYPE_LABELS: Record<string, string> = {
   problem_statement: 'Problem Statement',
   requirements_doc: 'Requirements Document',
-  user_stories: 'User Stories',
+  build_plan: 'Build Plan',
   architecture_doc: 'Architecture Document',
   diagram: 'Diagram',
   spec: 'Specification',
