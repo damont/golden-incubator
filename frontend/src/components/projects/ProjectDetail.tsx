@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { api } from '../../api/client'
-import type { Project } from '../../types'
+import type { Conversation, Project, ProjectPhase } from '../../types'
 import ChatView from '../conversations/ChatView'
 import ArtifactList from '../artifacts/ArtifactList'
 import ProgressSidebar from '../progress/ProgressSidebar'
@@ -24,6 +24,22 @@ const PHASE_LABELS: Record<string, string> = {
   architecture: 'Domain Design',
 }
 
+// Canonical phase order for the chat tabs
+const CHAT_PHASES: { value: ProjectPhase; label: string }[] = [
+  { value: 'discovery', label: 'Discovery' },
+  { value: 'domain_design', label: 'Domain Design' },
+  { value: 'build', label: 'Build' },
+  { value: 'deploy', label: 'Deploy' },
+  { value: 'handoff', label: 'Handoff' },
+]
+
+// Map legacy phases to their canonical replacement
+function canonicalPhase(phase: ProjectPhase): ProjectPhase {
+  if (phase === 'intake' || phase === 'requirements') return 'discovery'
+  if (phase === 'architecture') return 'domain_design'
+  return phase
+}
+
 type Tab = 'chat' | 'artifacts' | 'entities'
 
 export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailProps) {
@@ -31,26 +47,52 @@ export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailPr
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('chat')
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
+  const [chatPhase, setChatPhase] = useState<ProjectPhase | null>(null)
+  const [phasesWithConversations, setPhasesWithConversations] = useState<Set<ProjectPhase>>(new Set())
 
   const loadProject = () => {
     api.get<Project>(`/api/projects/${projectId}`)
-      .then(setProject)
+      .then(p => {
+        setProject(p)
+        // Default chatPhase to the project's current phase
+        setChatPhase(prev => prev || canonicalPhase(p.current_phase))
+      })
       .catch(() => onNavigate('/projects'))
       .finally(() => setLoading(false))
   }
 
+  const loadConversationPhases = () => {
+    api.get<Conversation[]>(`/api/projects/${projectId}/conversations`)
+      .then(conversations => {
+        const phases = new Set<ProjectPhase>(
+          conversations.map(c => canonicalPhase(c.phase))
+        )
+        setPhasesWithConversations(phases)
+      })
+      .catch(() => {})
+  }
+
   useEffect(() => {
     loadProject()
-  }, [projectId, onNavigate])
+    loadConversationPhases()
+  }, [projectId])
 
   const handleMessageSent = () => {
     setSidebarRefreshKey(k => k + 1)
     loadProject()
+    loadConversationPhases()
   }
 
   if (loading || !project) {
     return <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
   }
+
+  const currentCanonicalPhase = canonicalPhase(project.current_phase)
+  const effectiveChatPhase = chatPhase || currentCanonicalPhase
+
+  // Determine which phase tabs to show: phases up to and including current
+  const currentPhaseIndex = CHAT_PHASES.findIndex(p => p.value === currentCanonicalPhase)
+  const visiblePhases = CHAT_PHASES.slice(0, currentPhaseIndex + 1)
 
   return (
     <div className="flex flex-1 min-h-0 h-full overflow-hidden">
@@ -59,7 +101,9 @@ export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailPr
         projectId={projectId}
         refreshKey={sidebarRefreshKey}
         onPhaseClick={(phase) => {
-          console.log('Phase clicked:', phase)
+          const canonical = canonicalPhase(phase as ProjectPhase)
+          setChatPhase(canonical)
+          setActiveTab('chat')
         }}
       />
 
@@ -103,10 +147,42 @@ export default function ProjectDetail({ projectId, onNavigate }: ProjectDetailPr
           ))}
         </div>
 
+        {/* Phase Chat Tabs (only visible when chat tab is active) */}
+        {activeTab === 'chat' && visiblePhases.length > 1 && (
+          <div className="flex gap-1 mb-3">
+            {visiblePhases.map(p => {
+              const isActive = effectiveChatPhase === p.value
+              const hasConversation = phasesWithConversations.has(p.value)
+              const isCurrent = p.value === currentCanonicalPhase
+
+              return (
+                <button
+                  key={p.value}
+                  onClick={() => setChatPhase(p.value)}
+                  className="px-3 py-1 rounded-full text-xs font-medium"
+                  style={{
+                    backgroundColor: isActive ? 'var(--accent)' : 'var(--bg-surface)',
+                    color: isActive ? 'white' : hasConversation ? 'var(--text-primary)' : 'var(--text-muted)',
+                    border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border-color)'}`,
+                    opacity: hasConversation || isCurrent ? 1 : 0.6,
+                  }}
+                >
+                  {p.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Tab Content */}
         <div className="flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'chat' && (
-            <ChatView projectId={projectId} phase={project.current_phase} onMessageSent={handleMessageSent} />
+            <ChatView
+              projectId={projectId}
+              phase={effectiveChatPhase}
+              isCurrentPhase={effectiveChatPhase === currentCanonicalPhase}
+              onMessageSent={handleMessageSent}
+            />
           )}
           {activeTab === 'entities' && (
             <EntityList projectId={projectId} />

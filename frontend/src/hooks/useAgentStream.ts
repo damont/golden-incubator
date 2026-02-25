@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { api } from '../api/client'
 
-export type AgentStatus = 'idle' | 'thinking' | 'tool_call' | 'tool_result' | 'complete' | 'error'
+export type AgentStatus = 'idle' | 'thinking' | 'generating' | 'tool_call' | 'tool_result' | 'complete' | 'error'
 
 interface AgentStreamState {
   status: AgentStatus
   currentTool: string | null
   toolSummary: string | null
+  generatingDetail: string | null
   iteration: number
   assistantText: string | null
   conversationId: string | null
@@ -18,6 +19,7 @@ const initialState: AgentStreamState = {
   status: 'idle',
   currentTool: null,
   toolSummary: null,
+  generatingDetail: null,
   iteration: 0,
   assistantText: null,
   conversationId: null,
@@ -45,6 +47,14 @@ export function useAgentStream(jobId: string | null): AgentStreamState {
           iteration,
           currentTool: null,
           toolSummary: null,
+          generatingDetail: null,
+        }))
+      },
+      onGenerating: (detail) => {
+        setState(prev => ({
+          ...prev,
+          status: 'generating',
+          generatingDetail: detail,
         }))
       },
       onToolCall: (tool, inputSummary) => {

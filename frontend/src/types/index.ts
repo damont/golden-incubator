@@ -72,7 +72,7 @@ export interface Artifact {
 export type ArtifactType =
   | 'problem_statement'
   | 'requirements_doc'
-  | 'user_stories'
+  | 'build_plan'
   | 'architecture_doc'
   | 'diagram'
   | 'spec'

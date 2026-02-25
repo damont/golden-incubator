@@ -59,9 +59,9 @@ async def test_list_artifacts(project_with_auth):
         "content": "content",
     })
     await client.post(f"/api/projects/{project_id}/artifacts", json={
-        "artifact_type": "user_stories",
-        "title": "Stories",
-        "content": "stories content",
+        "artifact_type": "spec",
+        "title": "Spec",
+        "content": "spec content",
     })
     res = await client.get(f"/api/projects/{project_id}/artifacts")
     assert res.status_code == 200

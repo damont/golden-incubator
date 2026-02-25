@@ -149,6 +149,36 @@ async def download_artifact(
     )
 
 
+@router.get("/{project_id}/artifacts/{artifact_id}/download/markdown")
+async def download_artifact_markdown(
+    project_id: str,
+    artifact_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Download an artifact's content as a Markdown file."""
+    project = await Project.get(PydanticObjectId(project_id))
+    if not project or project.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    artifact = await Artifact.get(PydanticObjectId(artifact_id))
+    if not artifact or artifact.project_id != project.id:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    if artifact.artifact_type == ArtifactType.UPLOAD:
+        raise HTTPException(status_code=400, detail="Use /download for uploaded files")
+
+    # Slugify the title for the filename
+    safe_title = artifact.title.lower().replace(" ", "-")
+    safe_title = "".join(c for c in safe_title if c.isalnum() or c in "-_")
+    filename = f"{safe_title}.md"
+
+    return Response(
+        content=artifact.content.encode("utf-8"),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/{project_id}/artifacts", response_model=ArtifactResponse, status_code=201)
 async def create_artifact(
     project_id: str,

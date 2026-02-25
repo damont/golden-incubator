@@ -4,6 +4,7 @@ interface AgentStatusProps {
   status: AgentStatusType
   currentTool: string | null
   toolSummary: string | null
+  generatingDetail: string | null
   iteration: number
 }
 
@@ -13,7 +14,7 @@ const TOOL_LABELS: Record<string, string> = {
   update_phase: 'Updating phase',
 }
 
-export default function AgentStatus({ status, currentTool, iteration }: AgentStatusProps) {
+export default function AgentStatus({ status, currentTool, generatingDetail, iteration }: AgentStatusProps) {
   if (status === 'idle' || status === 'complete') return null
 
   if (status === 'error') {
@@ -31,6 +32,9 @@ export default function AgentStatus({ status, currentTool, iteration }: AgentSta
       <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
       {status === 'thinking' && (
         <span>Thinking{iteration > 1 ? ` (step ${iteration})` : ''}...</span>
+      )}
+      {status === 'generating' && (
+        <span>{generatingDetail || 'Generating response — this may take a few minutes'}...</span>
       )}
       {status === 'tool_call' && toolLabel && (
         <span>{toolLabel}...</span>

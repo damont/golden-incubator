@@ -61,6 +61,7 @@ class ApiClient {
     jobId: string,
     callbacks: {
       onThinking?: (iteration: number) => void
+      onGenerating?: (detail: string) => void
       onToolCall?: (tool: string, inputSummary: string) => void
       onToolResult?: (tool: string, summary: string) => void
       onComplete?: (text: string, conversationId: string) => void
@@ -79,6 +80,11 @@ class ApiClient {
     eventSource.addEventListener('thinking', (e) => {
       const data = JSON.parse(e.data)
       callbacks.onThinking?.(data.iteration)
+    })
+
+    eventSource.addEventListener('generating', (e) => {
+      const data = JSON.parse(e.data)
+      callbacks.onGenerating?.(data.detail)
     })
 
     eventSource.addEventListener('tool_call', (e) => {

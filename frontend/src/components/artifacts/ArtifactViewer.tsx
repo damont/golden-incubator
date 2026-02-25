@@ -10,7 +10,7 @@ interface ArtifactViewerProps {
 const TYPE_LABELS: Record<string, string> = {
   problem_statement: 'Problem Statement',
   requirements_doc: 'Requirements Document',
-  user_stories: 'User Stories',
+  build_plan: 'Build Plan',
   architecture_doc: 'Architecture Document',
   diagram: 'Diagram',
   spec: 'Specification',
@@ -25,6 +25,7 @@ function formatFileSize(bytes: number): string {
 
 export default function ArtifactViewer({ artifact }: ArtifactViewerProps) {
   const [downloading, setDownloading] = useState(false)
+  const [downloadingMd, setDownloadingMd] = useState(false)
 
   const handleDownload = async () => {
     setDownloading(true)
@@ -47,15 +48,60 @@ export default function ArtifactViewer({ artifact }: ArtifactViewerProps) {
     }
   }
 
+  const handleDownloadMarkdown = async () => {
+    setDownloadingMd(true)
+    try {
+      const blob = await api.downloadBlob(
+        `/api/projects/${artifact.project_id}/artifacts/${artifact.id}/download/markdown`
+      )
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${artifact.title.toLowerCase().replace(/\s+/g, '-')}.md`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      // silently fail
+    } finally {
+      setDownloadingMd(false)
+    }
+  }
+
+  const showMarkdownDownload = artifact.artifact_type !== 'upload' && artifact.content
+
   return (
     <div>
       <div className="mb-4">
-        <h2 className="text-xl font-bold">{artifact.title}</h2>
-        <div className="flex gap-3 mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-          <span>{TYPE_LABELS[artifact.artifact_type] || artifact.artifact_type}</span>
-          <span>v{artifact.version}</span>
-          <span>Phase: {artifact.phase}</span>
-          <span>By: {artifact.created_by}</span>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">{artifact.title}</h2>
+            <div className="flex gap-3 mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              <span>{TYPE_LABELS[artifact.artifact_type] || artifact.artifact_type}</span>
+              <span>v{artifact.version}</span>
+              <span>Phase: {artifact.phase}</span>
+              <span>By: {artifact.created_by}</span>
+            </div>
+          </div>
+          {showMarkdownDownload && (
+            <button
+              onClick={handleDownloadMarkdown}
+              disabled={downloadingMd}
+              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium border shrink-0"
+              style={{
+                borderColor: 'var(--border-color)',
+                color: downloadingMd ? 'var(--text-muted)' : 'var(--text-primary)',
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {downloadingMd ? 'Downloading...' : 'Download .md'}
+            </button>
+          )}
         </div>
       </div>
 

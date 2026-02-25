@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 TOOLS = [
     {
         "name": "save_artifact",
-        "description": "Save a project artifact (requirements doc, problem statement, user stories, etc.). Use this when you have synthesized enough information to produce a structured document.",
+        "description": "Save a project artifact (requirements doc, problem statement, build plan, etc.). Use this when you have synthesized enough information to produce a structured document.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -151,12 +151,96 @@ Follow this process:
 8. Get explicit confirmation from the client, then use update_phase to move to build.
 
 Use save_entity to capture any new decisions or constraints that emerge.""",
+
+    ProjectPhase.BUILD: """You are in the BUILD phase. The client has completed Discovery (problem statement + requirements) and Domain Design (DDD model). Your goal is to collect project-specific decisions, then produce a **comprehensive, self-contained build plan artifact** that bakes in all architectural conventions. The user can download this artifact to hand off to an offline agent.
+
+Follow this process:
+
+**Part 1 — Review Prior Work**
+1. Carefully review the problem statement and requirements document from Discovery.
+2. Review the domain model from Domain Design.
+3. Summarize what you've learned so the client can confirm you understand the project.
+
+**Part 2 — Project-Specific Decisions**
+Ask the client these questions ONE at a time (skip any already answered by prior artifacts):
+
+- **Deployment target**: Raspberry Pi (Path A — local Docker) or Azure (Path B — cloud)?
+- **App name**: What is the application name? (Affects DB name, container names, DNS.)
+- **Port numbers**: Which ports for API and frontend? (Defaults: 80xx for API, 80xx for frontend.)
+- **Auth model**: Per-user accounts (register + login) or shared/single password?
+- **Primary resources**: What are the main entities the user manages? (May already be clear from the domain model.)
+- **App views**: What are the main navigable pages/views? (e.g., Dashboard, List, Detail, Settings.)
+- **File storage**: Does the app need file uploads? (If yes: what types, size limits?)
+- **Background workers**: Does the app need async processing? (Notifications, long-running jobs, scheduled tasks.)
+- **GitHub feedback**: Should the app have in-app feedback that creates GitHub Issues?
+- **Agent API access**: Does the app need API key auth for AI agents or external scripts?
+
+**Part 3 — Build Plan Generation**
+Once decisions are collected, produce a comprehensive build plan artifact using save_artifact with artifact_type="build_plan". The plan MUST be **completely self-contained** — an offline agent reading only this document should be able to build the entire MVP from scratch.
+
+The plan MUST cover these sections, with ALL conventions baked in (not referenced):
+
+**Section 1: Project Setup** — Monorepo structure, directory layout, dependency files (pyproject.toml with uv, package.json), .env template, dev tooling
+
+**Section 2: Backend Foundation** — FastAPI app factory, Beanie/Motor MongoDB setup, JWT auth with Argon2 password hashing, CORS middleware, error handling, logging config
+
+**Section 3: Backend Domain** — Beanie Document models mapped from DDD entities (one file per resource in schemas/orm/), Pydantic DTOs (one file per resource in schemas/dto/), FastAPI routes (one file per resource in routes/), service layer. Nest related data as BaseModel inside documents rather than separate collections.
+
+**Section 4: Backend Testing** — pytest + anyio fixtures, test database config, conftest.py with auth fixtures, unit tests for services, integration tests for API endpoints
+
+**Section 5: Frontend Foundation** — React 19 + TypeScript + Vite setup, Tailwind CSS v4 config, custom useRouter hook (NO router library), API client class, JWT auth context, dark theme with CSS variables, base layout & navigation
+
+**Section 6: Frontend Features** — Component structure per feature, URL-driven navigation (derive view from path), mobile-first responsive design, forms & validation, loading/error states
+
+**Section 7: Frontend Testing** — Vitest + React Testing Library setup, component tests, mock patterns
+
+**Section 8: Docker & Deployment** — Multi-stage Dockerfiles (Python + Node), docker-compose for chosen deployment target, environment variable management, Nginx config, production build steps
+
+**Section 9: Conditional Sections** — Include ONLY if the client said yes:
+  - File storage setup (local storage service, upload endpoints, size limits)
+  - Background workers (Redis + ARQ or similar, worker Dockerfile)
+  - GitHub feedback integration (GitHub API, issue creation endpoint)
+  - Agent API access (API key model, separate auth middleware)
+
+Each section MUST include:
+- Specific files to create (with full paths from project root)
+- Code patterns to follow (with concrete code examples showing the conventions)
+- Verification steps (exact commands to run to confirm the section works)
+- A checklist of deliverables
+
+**Part 4 — Review**
+7. Present the plan to the client for review.
+8. Iterate on feedback.
+9. Once approved, use update_phase to move to deploy.
+
+Use save_entity to capture any new decisions or constraints that emerge.
+
+## Fixed Conventions Reference
+These are NOT up for discussion — bake them into the build plan as-is:
+- **Python**: 3.12+, managed with uv, FastAPI framework
+- **Database**: MongoDB with Beanie ODM + Motor async driver
+- **Auth**: PyJWT for tokens + argon2-cffi for password hashing (NOT bcrypt)
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS v4
+- **Routing**: Custom useRouter hook parsing window.location — NO React Router or other router library
+- **Theme**: Dark theme using CSS custom properties (--bg-primary, --bg-surface, --text-primary, --accent, etc.)
+- **Layout**: Mobile-first responsive design, sidebar + main content pattern
+- **ORM pattern**: One Beanie Document per resource file in api/schemas/orm/. Nest related sub-objects as BaseModel inside parent documents.
+- **DTO pattern**: One file per resource in api/schemas/dto/ with Create/Update/Response models
+- **Route pattern**: One router per resource in api/routes/, mounted in main app
+- **Navigation**: URL-driven — derive current view from window.location.pathname
+- **Docker**: Multi-stage builds, docker-compose for local dev and production
+- **Backend tests**: pytest + anyio, async fixtures, separate test DB
+- **Frontend tests**: Vitest + React Testing Library""",
 }
 
 DEFAULT_INSTRUCTIONS = """You are a helpful AI project manager guiding software development. Help the client with their current needs based on the project's phase and context."""
 
 
-def build_system_prompt(project: Project, artifacts: list[Artifact]) -> str:
+def build_system_prompt(
+    project: Project,
+    artifacts: list[Artifact],
+    include_artifacts: bool = True,
+) -> str:
     parts = [
         "You are the Golden Incubator AI — a project manager guiding software development from idea to deployment.",
         f"\n## Current Project: {project.name}",
@@ -179,14 +263,21 @@ def build_system_prompt(project: Project, artifacts: list[Artifact]) -> str:
     )
     parts.append(f"\n## Phase Instructions\n{phase_instructions}")
 
-    if artifacts:
+    if include_artifacts and artifacts:
         parts.append("\n## Existing Artifacts")
+        # In BUILD phase, include full artifact content (agent needs complete context)
+        no_truncate = effective_phase == ProjectPhase.BUILD
         for artifact in artifacts:
             parts.append(f"\n### {artifact.title} ({artifact.artifact_type.value})")
-            if len(artifact.content) <= 2000:
+            if no_truncate or len(artifact.content) <= 2000:
                 parts.append(artifact.content)
             else:
                 parts.append(artifact.content[:2000] + "\n...(truncated)")
+    elif not include_artifacts:
+        parts.append(
+            "\n## Existing Artifacts\n"
+            "(Artifacts were provided in the initial context. Refer to them from earlier in this conversation.)"
+        )
 
     parts.append(
         "\n## Guidelines"
@@ -401,30 +492,56 @@ async def send_message(
         Message(role="user", content=user_message)
     )
 
-    # Build messages for Anthropic API
-    system_prompt = build_system_prompt(project, artifacts)
+    # Build messages for Anthropic API (window to last 20 stored messages)
+    system_prompt_full = build_system_prompt(project, artifacts)
+    system_prompt_slim = build_system_prompt(project, artifacts, include_artifacts=False)
+    recent_messages = conversation.messages[-20:]
     api_messages = [
         {"role": m.role, "content": m.content}
-        for m in conversation.messages
+        for m in recent_messages
     ]
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+    # Phase-dependent limits
+    effective_phase = project.current_phase
+    if effective_phase in (ProjectPhase.INTAKE, ProjectPhase.REQUIREMENTS):
+        effective_phase = ProjectPhase.DISCOVERY
+    elif effective_phase == ProjectPhase.ARCHITECTURE:
+        effective_phase = ProjectPhase.DOMAIN_DESIGN
+
+    if effective_phase == ProjectPhase.BUILD:
+        max_tokens = 32000
+        max_iterations = 15
+    else:
+        max_tokens = 4096
+        max_iterations = 10
+
     # Agent loop - keep calling until no more tool use
     assistant_text = ""
-    max_iterations = 10
 
     try:
         for iteration in range(1, max_iterations + 1):
             await reporter.report_thinking(iteration)
 
-            response = await client.messages.create(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=4096,
-                system=system_prompt,
+            # Use full prompt (with artifacts) on first iteration, slim on follow-ups
+            prompt = system_prompt_full if iteration == 1 else system_prompt_slim
+
+            # Give the user context on what's happening for long generations
+            if iteration > 1 and effective_phase == ProjectPhase.BUILD:
+                await reporter.report_generating(
+                    "Writing build plan — this may take a few minutes"
+                )
+
+            # Use streaming to avoid SDK timeout on large max_tokens values
+            async with client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=max_tokens,
+                system=prompt,
                 messages=api_messages,
                 tools=TOOLS,
-            )
+            ) as stream:
+                response = await stream.get_final_message()
 
             # Collect text blocks and tool use blocks
             text_parts = []
@@ -437,6 +554,24 @@ async def send_message(
 
             if text_parts:
                 assistant_text = "\n".join(text_parts)
+
+            # If the response was truncated (hit max_tokens), ask the model to continue
+            # instead of processing potentially incomplete tool calls
+            if response.stop_reason == "max_tokens":
+                logger.warning(
+                    "Response truncated (max_tokens) on iteration %d for project %s",
+                    iteration,
+                    project.id,
+                )
+                await reporter.report_generating(
+                    "Still writing — continuing where it left off"
+                )
+                api_messages.append({"role": "assistant", "content": response.content})
+                api_messages.append({
+                    "role": "user",
+                    "content": "Your response was truncated. Please continue exactly where you left off.",
+                })
+                continue
 
             if not tool_uses:
                 # No tool calls - we're done
@@ -467,6 +602,28 @@ async def send_message(
 
             api_messages.append({"role": "user", "content": tool_results})
 
+    except anthropic.RateLimitError as e:
+        user_msg = (
+            "The AI is temporarily rate-limited. This usually means the prompt "
+            "(system instructions + conversation history + reference docs) is too large "
+            "for the current rate limit tier. Please wait a minute and try again, or "
+            "contact the admin to increase the API rate limit."
+        )
+        logger.error("Rate limit hit: %s", e)
+        await reporter.report_error(user_msg)
+        raise
+    except anthropic.BadRequestError as e:
+        error_str = str(e)
+        if "token" in error_str.lower() and ("limit" in error_str.lower() or "exceed" in error_str.lower() or "too long" in error_str.lower()):
+            user_msg = (
+                "The conversation has grown too large for the AI model's context window. "
+                "Try starting a new conversation, or ask the admin to check the prompt size."
+            )
+        else:
+            user_msg = f"The AI service returned an error: {error_str}"
+        logger.error("Anthropic BadRequest: %s", e)
+        await reporter.report_error(user_msg)
+        raise
     except Exception as e:
         await reporter.report_error(str(e))
         raise

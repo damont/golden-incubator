@@ -11,11 +11,13 @@ from api.schemas.orm.project import ProjectPhase
 class ArtifactType(str, Enum):
     PROBLEM_STATEMENT = "problem_statement"
     REQUIREMENTS_DOC = "requirements_doc"
-    USER_STORIES = "user_stories"
+    BUILD_PLAN = "build_plan"
     ARCHITECTURE_DOC = "architecture_doc"
     DIAGRAM = "diagram"
     SPEC = "spec"
     UPLOAD = "upload"
+    # Legacy — kept so existing MongoDB documents still load
+    USER_STORIES = "user_stories"
 
 
 class Artifact(Document):

@@ -1,14 +1,15 @@
 import logging
+from typing import Optional
 
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.schemas.dto.conversation import (
     ConversationResponse,
     MessageResponse,
 )
 from api.schemas.orm.conversation import Conversation
-from api.schemas.orm.project import Project
+from api.schemas.orm.project import Project, ProjectPhase
 from api.schemas.orm.user import User
 from api.utils.auth import get_current_user
 
@@ -38,15 +39,24 @@ def conversation_to_response(conv: Conversation) -> ConversationResponse:
 @router.get("/{project_id}/conversations", response_model=list[ConversationResponse])
 async def list_conversations(
     project_id: str,
+    phase: Optional[str] = Query(None, description="Filter by phase (e.g. 'discovery', 'build')"),
     user: User = Depends(get_current_user),
 ):
     project = await Project.get(PydanticObjectId(project_id))
     if not project or project.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    conversations = await Conversation.find(
-        Conversation.project_id == project.id
-    ).to_list()
+    query = Conversation.find(Conversation.project_id == project.id)
+    if phase:
+        try:
+            phase_enum = ProjectPhase(phase)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid phase: {phase}")
+        query = Conversation.find(
+            Conversation.project_id == project.id,
+            Conversation.phase == phase_enum,
+        )
+    conversations = await query.to_list()
     return [conversation_to_response(c) for c in conversations]
 
 

@@ -78,10 +78,10 @@ DEFAULT_PHASE_STEPS = {
         {"name": "Event Flows", "slug": "event-flows", "description": "Domain events and their triggers/subscribers"},
     ],
     ProjectPhase.BUILD: [
-        {"name": "Project Setup", "slug": "project-setup", "description": "Repository, CI/CD, development environment"},
-        {"name": "Core Implementation", "slug": "core-implementation", "description": "Build the core functionality"},
-        {"name": "Testing", "slug": "testing", "description": "Unit, integration, and e2e tests"},
-        {"name": "Documentation", "slug": "documentation", "description": "Code docs, API docs, README"},
+        {"name": "Tech Stack Review", "slug": "tech-stack-review", "description": "Confirm technology choices with the client"},
+        {"name": "Architecture Planning", "slug": "architecture-planning", "description": "Map DDD model to implementation architecture"},
+        {"name": "Build Plan Generation", "slug": "build-plan-generation", "description": "Produce the comprehensive build plan artifact"},
+        {"name": "Plan Review", "slug": "plan-review", "description": "Client reviews and approves the plan"},
     ],
     ProjectPhase.DEPLOY: [
         {"name": "Staging Deployment", "slug": "staging", "description": "Deploy to staging environment"},
