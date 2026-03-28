@@ -467,6 +467,7 @@ async def send_message(
     project_id: str,
     user_message: str,
     reporter: StatusReporter | None = None,
+    is_intro: bool = False,
 ) -> tuple[str, Conversation]:
     if reporter is None:
         reporter = NullStatusReporter()
@@ -487,19 +488,31 @@ async def send_message(
         project.id, project.current_phase
     )
 
-    # Add user message
-    conversation.messages.append(
-        Message(role="user", content=user_message)
-    )
+    if is_intro:
+        # Phase intro: don't save user message, use a hidden instruction
+        intro_instruction = (
+            "This is the beginning of a new phase. Generate a brief, welcoming "
+            "introduction for the user. Explain what this phase is about, what "
+            "you'll be working on together, and what the user should expect. "
+            "Reference any relevant context from previous phases if available. "
+            "End with a natural prompt for the user to respond to. "
+            "Keep it concise — 2-4 short paragraphs."
+        )
+        api_messages = [{"role": "user", "content": intro_instruction}]
+    else:
+        # Normal message flow
+        conversation.messages.append(
+            Message(role="user", content=user_message)
+        )
+        recent_messages = conversation.messages[-20:]
+        api_messages = [
+            {"role": m.role, "content": m.content}
+            for m in recent_messages
+        ]
 
-    # Build messages for Anthropic API (window to last 20 stored messages)
+    # Build messages for Anthropic API
     system_prompt_full = build_system_prompt(project, artifacts)
     system_prompt_slim = build_system_prompt(project, artifacts, include_artifacts=False)
-    recent_messages = conversation.messages[-20:]
-    api_messages = [
-        {"role": m.role, "content": m.content}
-        for m in recent_messages
-    ]
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -510,7 +523,10 @@ async def send_message(
     elif effective_phase == ProjectPhase.ARCHITECTURE:
         effective_phase = ProjectPhase.DOMAIN_DESIGN
 
-    if effective_phase == ProjectPhase.BUILD:
+    if is_intro:
+        max_tokens = 1024
+        max_iterations = 1
+    elif effective_phase == ProjectPhase.BUILD:
         max_tokens = 32000
         max_iterations = 15
     else:
@@ -534,13 +550,15 @@ async def send_message(
                 )
 
             # Use streaming to avoid SDK timeout on large max_tokens values
-            async with client.messages.stream(
+            stream_kwargs = dict(
                 model="claude-sonnet-4-6",
                 max_tokens=max_tokens,
                 system=prompt,
                 messages=api_messages,
-                tools=TOOLS,
-            ) as stream:
+            )
+            if not is_intro:
+                stream_kwargs["tools"] = TOOLS
+            async with client.messages.stream(**stream_kwargs) as stream:
                 response = await stream.get_final_message()
 
             # Collect text blocks and tool use blocks

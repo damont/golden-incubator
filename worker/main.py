@@ -22,7 +22,9 @@ GROUP_NAME = "agent-workers"
 CONSUMER_NAME = os.environ.get("WORKER_ID", "worker-1")
 
 
-async def process_job(redis: Redis, job_id: str, project_id: str, user_message: str) -> None:
+async def process_job(
+    redis: Redis, job_id: str, project_id: str, user_message: str, is_intro: bool = False
+) -> None:
     """Run the agent loop for a single job."""
     reporter = RedisStatusReporter(redis, job_id)
 
@@ -30,7 +32,7 @@ async def process_job(redis: Redis, job_id: str, project_id: str, user_message: 
     await redis.hset(f"job:{job_id}", "status", "processing")
 
     try:
-        await send_message(project_id, user_message, reporter=reporter)
+        await send_message(project_id, user_message, reporter=reporter, is_intro=is_intro)
     except Exception as e:
         logger.exception("Job %s failed: %s", job_id, e)
         await reporter.report_error(str(e))
@@ -65,16 +67,17 @@ async def run_worker(redis_url: str) -> None:
                 for message_id, fields in messages:
                     job_id = fields.get("job_id")
                     project_id = fields.get("project_id")
-                    user_message = fields.get("user_message")
+                    user_message = fields.get("user_message", "")
+                    is_intro = fields.get("is_intro", "false") == "true"
 
-                    if not all([job_id, project_id, user_message]):
+                    if not all([job_id, project_id]) or (not user_message and not is_intro):
                         logger.warning("Malformed job message %s: %s", message_id, fields)
                         await redis.xack(STREAM_KEY, GROUP_NAME, message_id)
                         continue
 
-                    logger.info("Processing job %s (project %s)", job_id, project_id)
+                    logger.info("Processing job %s (project %s, intro=%s)", job_id, project_id, is_intro)
 
-                    await process_job(redis, job_id, project_id, user_message)
+                    await process_job(redis, job_id, project_id, user_message, is_intro=is_intro)
 
                     # ACK after processing (even on failure — failed jobs don't block the queue)
                     await redis.xack(STREAM_KEY, GROUP_NAME, message_id)

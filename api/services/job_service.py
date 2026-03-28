@@ -12,7 +12,7 @@ STREAM_KEY = "agent_jobs"
 
 
 async def dispatch_job(
-    project_id: str, user_message: str, user_id: str
+    project_id: str, user_message: str, user_id: str, is_intro: bool = False
 ) -> str:
     """Dispatch an agent job to the Redis stream. Returns the job_id."""
     redis = get_redis()
@@ -35,6 +35,7 @@ async def dispatch_job(
         "project_id": project_id,
         "user_id": user_id,
         "user_message": user_message,
+        "is_intro": "true" if is_intro else "false",
     })
     await redis.expire(hash_key, 3600)
 
@@ -44,6 +45,7 @@ async def dispatch_job(
         "project_id": project_id,
         "user_id": user_id,
         "user_message": user_message,
+        "is_intro": "true" if is_intro else "false",
     })
 
     logger.info("Dispatched job %s for project %s", job_id, project_id)

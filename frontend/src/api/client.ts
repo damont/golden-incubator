@@ -56,6 +56,11 @@ class ApiClient {
     return this.post<JobResponse>(`/api/projects/${projectId}/messages`, { content })
   }
 
+  /** Request an AI-generated intro for the current phase. */
+  requestPhaseIntro(projectId: string): Promise<{ job_id?: string; status: string }> {
+    return this.post<{ job_id?: string; status: string }>(`/api/projects/${projectId}/phase-intro`, {})
+  }
+
   /** Connect to the SSE stream for a job. Returns a cleanup function. */
   streamJob(
     jobId: string,

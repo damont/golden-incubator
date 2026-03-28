@@ -8,6 +8,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from api.config import get_settings
 from api.schemas.dto.job import JobDispatchResponse, JobStatusResponse
+from api.schemas.orm.conversation import Conversation
 from api.schemas.orm.project import Project
 from api.schemas.orm.user import User
 from api.services.job_service import dispatch_job, get_job_status
@@ -154,3 +155,32 @@ async def poll_job_status(
         conversation_id=status.get("conversation_id"),
         error=status.get("error"),
     )
+
+
+@router.post("/projects/{project_id}/phase-intro")
+async def request_phase_intro(
+    project_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Generate an AI intro for the current phase if one doesn't exist yet."""
+    project = await Project.get(PydanticObjectId(project_id))
+    if not project or project.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Check if a conversation with messages already exists for the current phase
+    conversation = await Conversation.find_one(
+        Conversation.project_id == project.id,
+        Conversation.phase == project.current_phase,
+    )
+    if conversation and conversation.messages:
+        return {"status": "already_exists"}
+
+    try:
+        job_id = await dispatch_job(
+            project_id, "", str(user.id), is_intro=True
+        )
+    except ValueError:
+        # Dedup lock — a job is already running
+        return {"status": "in_progress"}
+
+    return {"job_id": job_id, "status": "queued"}

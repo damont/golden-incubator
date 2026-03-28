@@ -21,11 +21,14 @@ export default function ChatView({ projectId, phase, isCurrentPhase, onMessageSe
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const introRequestedRef = useRef<string | null>(null)
 
   const agentStream = useAgentStream(activeJobId)
 
   useEffect(() => {
     setLoadingConv(true)
+    // Reset intro guard when phase changes
+    introRequestedRef.current = null
     api.get<Conversation[]>(`/api/projects/${projectId}/conversations?phase=${phase}`)
       .then(conversations => {
         const phaseConv = conversations.find(c => c.phase === phase)
@@ -34,6 +37,26 @@ export default function ChatView({ projectId, phase, isCurrentPhase, onMessageSe
       .catch(() => setMessages([]))
       .finally(() => setLoadingConv(false))
   }, [projectId, phase])
+
+  // Auto-request phase intro when conversation is empty and it's the current phase
+  useEffect(() => {
+    if (loadingConv || messages.length > 0 || !isCurrentPhase || sending) return
+    // Prevent double-triggering for the same phase
+    const introKey = `${projectId}:${phase}`
+    if (introRequestedRef.current === introKey) return
+    introRequestedRef.current = introKey
+
+    api.requestPhaseIntro(projectId)
+      .then(result => {
+        if (result.job_id) {
+          setSending(true)
+          setActiveJobId(result.job_id)
+        }
+      })
+      .catch(() => {
+        // Silently fail — user can still type manually
+      })
+  }, [loadingConv, messages.length, isCurrentPhase, sending, projectId, phase])
 
   // When agent stream completes, add the assistant message
   useEffect(() => {
@@ -140,13 +163,10 @@ export default function ChatView({ projectId, phase, isCurrentPhase, onMessageSe
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-2 py-4 space-y-4">
-        {messages.length === 0 && (
+        {messages.length === 0 && !sending && (
           <div className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>
             {isCurrentPhase ? (
-              <>
-                <p className="text-lg mb-2">Start a conversation</p>
-                <p className="text-sm">Tell the AI about your project idea and it will guide you through the process.</p>
-              </>
+              <p className="text-sm">Preparing phase introduction...</p>
             ) : (
               <p className="text-sm">No conversation for this phase.</p>
             )}
