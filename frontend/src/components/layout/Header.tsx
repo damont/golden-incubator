@@ -13,8 +13,8 @@ export default function Header({ onNavigate }: HeaderProps) {
       style={{ backgroundColor: 'var(--header-bg)', borderColor: 'var(--border-color)' }}
     >
       <a
-        href="/projects"
-        onClick={e => { e.preventDefault(); onNavigate('/projects') }}
+        href="/sessions"
+        onClick={e => { e.preventDefault(); onNavigate('/sessions') }}
         className="text-lg font-bold"
         style={{ color: 'var(--accent)' }}
       >

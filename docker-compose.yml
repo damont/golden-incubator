@@ -1,13 +1,4 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: incubator-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-
   api:
     build:
       context: .
@@ -21,31 +12,7 @@ services:
       - MONGODB_URL=mongodb://host.docker.internal:27017
       - MONGODB_DB_NAME=golden_incubator
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - PAT_ENCRYPTION_KEY=${PAT_ENCRYPTION_KEY:-change-me}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - REDIS_URL=redis://redis:6379
-      - UPLOAD_DIR=/app/uploads
-    volumes:
-      - uploads:/app/uploads
-    depends_on:
-      - redis
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: .
-      target: backend
-    container_name: incubator-worker
-    command: ["uv", "run", "python", "-m", "worker.main"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      - MONGODB_URL=mongodb://host.docker.internal:27017
-      - MONGODB_DB_NAME=golden_incubator
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
     restart: unless-stopped
 
   frontend:
@@ -58,7 +25,3 @@ services:
     depends_on:
       - api
     restart: unless-stopped
-
-volumes:
-  uploads:
-  redis-data:

@@ -4,9 +4,8 @@ import { useRouter, matchPath } from './hooks/useRouter'
 import AppLayout from './components/layout/AppLayout'
 import Login from './components/auth/Login'
 import Register from './components/auth/Register'
-import ProjectList from './components/projects/ProjectList'
-import CreateProject from './components/projects/CreateProject'
-import ProjectDetail from './components/projects/ProjectDetail'
+import SessionList from './components/sessions/SessionList'
+import SessionView from './components/sessions/SessionView'
 
 function AppContent() {
   const { user, isLoading } = useAuth()
@@ -14,7 +13,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!isLoading && user && (path === '/' || path === '/login' || path === '/register')) {
-      navigate('/projects', true)
+      navigate('/sessions', true)
     }
   }, [isLoading, user, path, navigate])
 
@@ -37,15 +36,13 @@ function AppContent() {
     return <Login onNavigate={navigate} />
   }
 
-  const projectMatch = matchPath('/projects/:id', path)
+  const sessionMatch = matchPath('/sessions/:id', path)
 
   let content
-  if (path === '/projects/new') {
-    content = <CreateProject onNavigate={navigate} />
-  } else if (projectMatch) {
-    content = <ProjectDetail projectId={projectMatch.id} onNavigate={navigate} />
+  if (sessionMatch) {
+    content = <SessionView sessionId={sessionMatch.id} onNavigate={navigate} />
   } else {
-    content = <ProjectList onNavigate={navigate} />
+    content = <SessionList onNavigate={navigate} />
   }
 
   return (

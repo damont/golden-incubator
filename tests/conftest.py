@@ -1,5 +1,4 @@
 import os
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -7,13 +6,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 
 from api.main import app
-from api.schemas.orm.artifact import Artifact
-from api.schemas.orm.conversation import Conversation
-from api.schemas.orm.ddd import DomainEntity, Subdomain, DomainEvent
-from api.schemas.orm.entity import Entity, EntityCounter
-from api.schemas.orm.note import Note, ActivityLog
-from api.schemas.orm.project import Project
-from api.schemas.orm.step import Step
+from api.schemas.orm.document import RequirementsDocument
+from api.schemas.orm.message import ChatMessage
+from api.schemas.orm.session import Session
 from api.schemas.orm.user import User
 from api.utils.auth import hash_password, create_access_token
 
@@ -31,30 +26,11 @@ async def setup_test_db():
     client = AsyncIOMotorClient(MONGODB_URL)
     await init_beanie(
         database=client[TEST_DB_NAME],
-        document_models=[User, Project, Conversation, Artifact, Entity, EntityCounter, Note, ActivityLog, Step, DomainEntity, Subdomain, DomainEvent],
+        document_models=[User, Session, ChatMessage, RequirementsDocument],
     )
     yield
     await client.drop_database(TEST_DB_NAME)
     client.close()
-
-
-@pytest.fixture(autouse=True)
-def mock_redis(monkeypatch):
-    """Mock Redis so tests don't require a running Redis instance."""
-    mock = MagicMock()
-    mock.ping = AsyncMock()
-    mock.get = AsyncMock(return_value=None)
-    mock.set = AsyncMock()
-    mock.hset = AsyncMock()
-    mock.hgetall = AsyncMock(return_value={})
-    mock.expire = AsyncMock()
-    mock.delete = AsyncMock()
-    mock.xadd = AsyncMock(return_value="1-0")
-    mock.publish = AsyncMock()
-    mock.close = AsyncMock()
-
-    import api.services.redis as redis_mod
-    monkeypatch.setattr(redis_mod, "_redis", mock)
 
 
 @pytest.fixture
