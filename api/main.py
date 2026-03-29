@@ -6,8 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
 from api.db import init_db
-from api.routes import artifacts, auth, conversations, entities, jobs, notes, progress, projects, steps, ddd
-from api.services.redis import close_redis, init_redis
+from api.routes import auth, sessions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,25 +23,16 @@ async def lifespan(app: FastAPI):
     # Initialize MongoDB
     client = await init_db(settings.mongodb_url, settings.mongodb_db_name)
 
-    # Initialize Redis
-    await init_redis(settings.redis_url)
-
-    # Initialize file storage
-    from api.services.storage import get_storage
-    get_storage()
-    logger.info("Storage backend initialized (upload_dir: %s)", settings.upload_dir)
-
     yield
 
-    await close_redis()
     client.close()
     logger.info("Disconnected from MongoDB")
 
 
 app = FastAPI(
     title="Golden Incubator API",
-    description="AI-guided software development platform",
-    version="0.2.0",
+    description="Collaborative requirements gathering tool",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
@@ -57,20 +47,8 @@ app.add_middleware(
 # Auth routes
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
-# Project routes
-app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
-app.include_router(conversations.router, prefix="/api/projects", tags=["conversations"])
-app.include_router(artifacts.router, prefix="/api/projects", tags=["artifacts"])
-
-# Job routes
-app.include_router(jobs.router, prefix="/api", tags=["jobs"])
-
-# Entity, Notes, Progress, Steps, and DDD routes (no prefix - they include /api/projects/{project_id})
-app.include_router(entities.router)
-app.include_router(notes.router)
-app.include_router(progress.router)
-app.include_router(steps.router)
-app.include_router(ddd.router)
+# Session routes (REST + WebSocket)
+app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 
 
 @app.get("/api/health")

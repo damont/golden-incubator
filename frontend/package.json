@@ -9,7 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "mermaid": "^11.12.3",
+    "@types/diff": "^8.0.0",
+    "diff": "^8.0.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",

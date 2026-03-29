@@ -1,6 +1,5 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import MermaidDiagram from './MermaidDiagram'
 import type { Components } from 'react-markdown'
 
 interface MarkdownContentProps {
@@ -17,11 +16,6 @@ const components: Components = {
     const lang = match?.[1]
     const text = String(children).replace(/\n$/, '')
     const isBlock = lang || text.includes('\n')
-
-    // Detect mermaid blocks
-    if (lang === 'mermaid') {
-      return <MermaidDiagram source={text} />
-    }
 
     // Fenced / multi-line code block
     if (isBlock) {

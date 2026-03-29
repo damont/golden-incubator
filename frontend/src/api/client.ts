@@ -1,4 +1,4 @@
-import type { JobResponse } from '../types'
+import type { Session, Message, Document } from '../types'
 
 class ApiClient {
   private baseUrl = ''
@@ -46,122 +46,54 @@ class ApiClient {
   }
 
   get<T>(path: string) { return this.request<T>('GET', path) }
-  post<T>(path: string, body: unknown) { return this.request<T>('POST', path, body) }
-  put<T>(path: string, body: unknown) { return this.request<T>('PUT', path, body) }
-  patch<T>(path: string, body: unknown) { return this.request<T>('PATCH', path, body) }
+  post<T>(path: string, body?: unknown) { return this.request<T>('POST', path, body) }
   delete<T>(path: string) { return this.request<T>('DELETE', path) }
 
-  /** Dispatch a message to the agent worker. Returns immediately with a job_id. */
-  sendMessage(projectId: string, content: string): Promise<JobResponse> {
-    return this.post<JobResponse>(`/api/projects/${projectId}/messages`, { content })
+  // Session endpoints
+  createSession(name: string) {
+    return this.post<Session>('/api/sessions/', { name })
   }
 
-  /** Connect to the SSE stream for a job. Returns a cleanup function. */
-  streamJob(
-    jobId: string,
-    callbacks: {
-      onThinking?: (iteration: number) => void
-      onGenerating?: (detail: string) => void
-      onToolCall?: (tool: string, inputSummary: string) => void
-      onToolResult?: (tool: string, summary: string) => void
-      onComplete?: (text: string, conversationId: string) => void
-      onError?: (message: string) => void
-    }
-  ): () => void {
-    const token = this.getToken()
-    if (!token) {
-      callbacks.onError?.('Not authenticated')
-      return () => {}
-    }
-
-    const url = `${this.baseUrl}/api/jobs/${jobId}/stream?token=${encodeURIComponent(token)}`
-    const eventSource = new EventSource(url)
-
-    eventSource.addEventListener('thinking', (e) => {
-      const data = JSON.parse(e.data)
-      callbacks.onThinking?.(data.iteration)
-    })
-
-    eventSource.addEventListener('generating', (e) => {
-      const data = JSON.parse(e.data)
-      callbacks.onGenerating?.(data.detail)
-    })
-
-    eventSource.addEventListener('tool_call', (e) => {
-      const data = JSON.parse(e.data)
-      callbacks.onToolCall?.(data.tool, data.input_summary)
-    })
-
-    eventSource.addEventListener('tool_result', (e) => {
-      const data = JSON.parse(e.data)
-      callbacks.onToolResult?.(data.tool, data.summary)
-    })
-
-    eventSource.addEventListener('complete', (e) => {
-      const data = JSON.parse(e.data)
-      callbacks.onComplete?.(data.text, data.conversation_id)
-      eventSource.close()
-    })
-
-    eventSource.addEventListener('error', (e) => {
-      // SSE error event can be a MessageEvent (server-sent) or a generic Event (connection error)
-      if (e instanceof MessageEvent && e.data) {
-        const data = JSON.parse(e.data)
-        callbacks.onError?.(data.message)
-      } else {
-        callbacks.onError?.('Connection lost')
-      }
-      eventSource.close()
-    })
-
-    return () => eventSource.close()
+  listSessions() {
+    return this.get<Session[]>('/api/sessions/')
   }
 
-  async upload<T>(path: string, file: File): Promise<T> {
-    const formData = new FormData()
-    formData.append('file', file)
+  getSession(id: string) {
+    return this.get<Session>(`/api/sessions/${id}`)
+  }
 
+  deleteSession(id: string) {
+    return this.delete(`/api/sessions/${id}`)
+  }
+
+  getMessages(sessionId: string) {
+    return this.get<Message[]>(`/api/sessions/${sessionId}/messages`)
+  }
+
+  getDocument(sessionId: string) {
+    return this.get<Document>(`/api/sessions/${sessionId}/document`)
+  }
+
+  async exportDocument(sessionId: string) {
     const headers: Record<string, string> = {}
     const token = this.getToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    })
-
-    if (res.status === 401) {
-      this.clearToken()
-      throw new Error('Unauthorized')
-    }
-
-    if (!res.ok) {
-      if (res.status === 413) throw new Error('File too large (10 MB limit)')
-      throw new Error(`API error: ${res.status}`)
-    }
-
-    return res.json()
-  }
-
-  async downloadBlob(path: string): Promise<Blob> {
-    const headers: Record<string, string> = {}
-    const token = this.getToken()
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-
-    const res = await fetch(`${this.baseUrl}${path}`, { headers })
-
-    if (res.status === 401) {
-      this.clearToken()
-      throw new Error('Unauthorized')
-    }
-
+    const res = await fetch(`${this.baseUrl}/api/sessions/${sessionId}/export`, { headers })
     if (!res.ok) throw new Error(`API error: ${res.status}`)
-    return res.blob()
+
+    const blob = await res.blob()
+    const disposition = res.headers.get('Content-Disposition')
+    const filename = disposition?.match(/filename="(.+)"/)?.[1] || 'requirements.md'
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
   }
 }
 
